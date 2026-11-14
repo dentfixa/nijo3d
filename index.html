@@ -44,7 +44,9 @@
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "3d-tiles-renderer": "https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.three.js",
+  "3d-tiles-renderer/plugins": "https://cdn.jsdelivr.net/npm/3d-tiles-renderer@0.4.28/build/index.three-plugins.js"
 } }
 </script>
 </head>
@@ -64,7 +66,7 @@
   <button id="btnCastle">니조성 가까이</button>
   <button id="btnReset">처음 시점</button>
 </div>
-<div id="credit">지도 데이터 © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> (ODbL) · three.js 절차적 3D · HDRI: Poly Haven “Pretoria Gardens” (CC0) · <a href="#" id="attrLink">참고 사진 출처</a></div>
+<div id="credit">지도 데이터 © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> (ODbL) · 건물: 国土交通省 PLATEAU · 항공사진·지형: 国土地理院 · HDRI: Poly Haven “Pretoria Gardens” (CC0) · <a href="#" id="attrLink">참고 사진 출처</a></div>
 <div id="attr" hidden></div>
 <script type="module">
 import * as THREE from 'three';
@@ -315,17 +317,22 @@ const MAT_BLD=[atlasMat('real'), atlasMat('pastel')];
 const GROUND_F=`varying vec3 vWPos; uniform float uGT;
 float gh(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float gn(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(gh(i),gh(i+vec2(1,0)),u.x),mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),u.x),u.y);}`;
+const AERU={value:null}, AERK={value:0};   // GSI aerial photo (seamlessphoto z17) draped over the ground, set by the data-layer module
 function groundMat(kind, gtype, opts={}){
+  const aerW = opts.aer!==undefined ? opts.aer : [.78,.82,.72,.6][gtype]; delete opts.aer;
   const m = kind==='real' ? new THREE.MeshStandardMaterial(Object.assign({vertexColors:true,roughness:.95,metalness:0},opts)) : toon(hex('#ffffff'),Object.assign({vertexColors:true},opts));
-  m.onBeforeCompile=(sh)=>{ sh.uniforms.uGT={value:gtype};
+  m.onBeforeCompile=(sh)=>{ sh.uniforms.uGT={value:gtype}; sh.uniforms.tAer=AERU; sh.uniforms.uAerK=AERK; sh.uniforms.uAerW={value:aerW};
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWPos;').replace('#include <project_vertex>','#include <project_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.)).xyz;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\n'+GROUND_F).replace('#include <map_fragment>', kind==='real' ? `{
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D tAer;uniform float uAerK,uAerW;\n'+GROUND_F).replace('#include <map_fragment>', kind==='real' ? `{
       vec2 p=vWPos.xz; float dd=length(cameraPosition-vWPos); float fine=1.-smoothstep(60.,400.,dd);
       float n=gn(p*.08)*.5+gn(p*.31)*.3+gn(p*1.7)*.2*fine; float n2=gn(p*6.)*fine;
       if(uGT<.5){ diffuseColor.rgb*=.86+.26*n+.06*(n2-.5); }                                   // asphalt / paving
       else if(uGT<1.5){ diffuseColor.rgb*=mix(vec3(.80,.86,.70),vec3(1.12,1.06,.92),n)*(.92+.16*n2); }   // grass
       else if(uGT<2.5){ diffuseColor.rgb*=.9+.18*n+.12*(n2-.5); }                              // gravel / earth
-      else { diffuseColor.rgb*=.93+.12*n; } }` : `{ vec2 p=vWPos.xz; float n=gn(p*.05); diffuseColor.rgb*=.95+.08*n; }`);
+      else { diffuseColor.rgb*=.93+.12*n; }
+      if(uAerK>.5){ vec2 au=vec2((p.x+2400.)/4800.,1.-(p.y+2400.)/4800.); vec3 ac=texture2D(tAer,au).rgb;
+        float w=uAerW*mix(.5,1.,smoothstep(15.,220.,dd))*step(abs(p.x),2390.)*step(abs(p.y),2390.);
+        diffuseColor.rgb=mix(diffuseColor.rgb, ac*(.9+.2*n+.08*(n2-.5)), w); } }` : `{ vec2 p=vWPos.xz; float n=gn(p*.05); diffuseColor.rgb*=.95+.08*n; }`);
   };
   m.customProgramCacheKey=()=>'ground-'+kind+gtype; return m;
 }
@@ -673,11 +680,11 @@ for(const rd of DATA.roads){
 }
 STATS.roads=DATA.roads.length;
 {
-  const mk=(gt,k)=>[groundMat('real',gt,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4*k}),groundMat('pastel',gt,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4*k})];
+  const mk=(gt,k,aer)=>[groundMat('real',gt,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4*k,aer}),groundMat('pastel',gt,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4*k})];
   meshFrom(gbSide, mk(3,3), {cast:false,name:'sidewalk'});
   meshFrom(gbPath, mk(2,3), {cast:false,name:'paths'});
   meshFrom(gbAsph, mk(0,4), {cast:false,name:'asphalt'});
-  meshFrom(gbMark, mk(3,6), {cast:false,name:'markings'});
+  meshFrom(gbMark, mk(3,6,0.08), {cast:false,name:'markings'});
   meshFrom(gbDeck, MAT_BLD, {name:'decks'});
 }
 // bridge decks drawn from OSM man_made=bridge areas (Horikawa bridges, Honmaru east/west bridges)
@@ -762,9 +769,12 @@ const STYLE = {
     for(let s=-(w-.6);s<=w-.6;s+=1) for(let t=-o.b-3;t<=o.b+3;t+=1){ const p=oPt(o,s,t); const i=Math.floor((p[0]+OCC_O)/OCC_S), j=Math.floor((p[1]+OCC_O)/OCC_S); if(i>=0&&j>=0&&i<OCC_N&&j<OCC_N) OCC[j*OCC_N+i]&=~1; }
   },
   sumiYagura:(b,o,base,opt)=>{ // corner turret: two storeys with a pent roof between
-    const e1=base+5.2; oBox(o,base,e1,TILE.PLASTER,C_PLASTER,CP_PLASTER);
+    // stone podium (ishigaki) so the two plastered storeys stand clear above the outer walls, as at the real Tatsumi / Hitsujisaru yagura
+    const pod=base+4.2; oBox(o,base,pod,TILE.ISHIGAKI,new THREE.Color(.86,.84,.8),CP_STONE,{da:.9,db:.9}); base=pod;
+    const e1=base+5.6; oBox(o,base,e1,TILE.PLASTER,C_PLASTER,CP_PLASTER);
+    oBox(o,base,base+1.1,TILE.TEMPLE,new THREE.Color(.22,.2,.19),CP_WOOD,{da:.05,db:.05});   // dark board skirt (koshiita)
     pitchedRoof(gbC,o,e1,1.4,'hipped',1.3,TILE.KAWARA,KAWARA_C,CP_ROOF,{seg:4,lift:.5,pw:1.2,pitch:.6,cap:0});
-    const o2=oSub(o,-o.a*.32,-o.b*.32); const e2=e1+3.4;
+    const o2=oSub(o,-o.a*.3,-o.b*.3); const e2=e1+4.2;
     oBox(o2,e1,e2,TILE.PLASTER,C_PLASTER,CP_PLASTER);
     castleRoof(o2,e2,Math.min(3.4,o2.b*Math.tan(.85)+.6),{over:1.4,lift:.7,cap:.5,oni:.9});
   },
@@ -928,23 +938,102 @@ console.log('castle fill trees', TREES.length-castleT0, 'skipped', castleSkip);
 for(const rd of roadsMajor){ if(!rd.s||rd.w<9) continue; const pts=dec(rd.c);
   for(const off of [rd.w/2+1.6, -(rd.w/2+1.6)]){ const line=offsetLine(pts,off); for(let i=0;i+1<line.length;i++){ const a=line[i],b=line[i+1]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); for(let s=4;s<L-4;s+=11){ addTree(a[0]+(b[0]-a[0])*s/L,a[1]+(b[1]-a[1])*s/L,R(8,12),'broad','street'); } } } }
 STATS.trees=TREES.length;
-// instanced, chunked, with a near/far geometry swap (LOD)
+// instanced, chunked, with a near/far geometry swap (LOD).
+// REAL style: leaf-card crowns (Kinkakuji v2 technique: alpha-tested leaf/needle atlases on oriented cards, branchy trunks)
+// PASTEL style: soft blob crowns (toon)
+const randUnitT=r=>{const u=r()*2-1,a=r()*6.2832,s=Math.sqrt(1-u*u);return new V3(Math.cos(a)*s,u,Math.sin(a)*s);};
+const rgbT=(r,g,b,a)=>a===undefined?`rgb(${r|0},${g|0},${b|0})`:`rgba(${r|0},${g|0},${b|0},${a})`;
+function leafAtlas(size, drawCell, bg){
+  const c=document.createElement('canvas');c.width=c.height=size;const g=c.getContext('2d');const cs=size/2;
+  for(let k=0;k<4;k++){g.save();g.translate((k%2)*cs,(k>>1)*cs);g.beginPath();g.rect(0,0,cs,cs);g.clip();drawCell(g,cs,mulberry32(100+k*31+size));g.restore();}
+  const d=g.getImageData(0,0,size,size).data; for(let i=0;i<d.length;i+=4){ if(d[i+3]<10){d[i]=bg[0];d[i+1]=bg[1];d[i+2]=bg[2];d[i+3]=0;} }
+  const t=new THREE.DataTexture(new Uint8Array(d.buffer.slice(0)),size,size,THREE.RGBAFormat);
+  t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;t.anisotropy=4;t.needsUpdate=true;return t;}
+function drawLeaves(pal,{n=1100,leaf=.024,lobes=7}={}){return (g,s,r)=>{ const cx=s/2; g.lineCap='round';
+  const L=[];for(let i=0;i<lobes;i++){const a=r()*6.283,rr=s*(.12+.2*r());L.push([cx+Math.cos(a)*rr,cx+Math.sin(a)*rr*.85-s*.03]);}
+  g.strokeStyle=rgbT(58,44,32); for(const [x,y] of L){g.lineWidth=s*.008;g.beginPath();g.moveTo(cx+(r()-.5)*s*.1,s*.98);g.quadraticCurveTo(cx+(x-cx)*.3,y+s*.25,x,y);g.stroke();}
+  for(let i=0;i<n;i++){ const [lx,ly]=L[i%lobes];const a=r()*6.283,rr=Math.sqrt(r())*s*.2; const x=lx+Math.cos(a)*rr,y=ly+Math.sin(a)*rr*.85;
+    const top=1-y/s, edge=rr/(s*.2); const col=pal[Math.floor(r()*pal.length)]; const b=(.55+.5*top)*(.8+.35*edge)*(.85+.3*r());
+    g.fillStyle=rgbT(Math.min(255,col[0]*b),Math.min(255,col[1]*b),Math.min(255,col[2]*b)); const sz=s*leaf*(.65+.6*r());
+    g.beginPath();g.ellipse(x,y,sz,sz*.48,r()*6.283,0,6.283);g.fill(); } };}
+function drawNeedlesT(pal,{tufts=34,needles=46,len=.075,width=.0035,spread=2.6}={}){return (g,s,r)=>{ const cx=s/2;g.lineCap='round';
+  const T=[];for(let i=0;i<tufts;i++){const a=r()*6.283,rr=Math.sqrt(r())*s*.36;T.push([cx+Math.cos(a)*rr,cx+Math.sin(a)*rr*.75-s*.02]);}
+  g.strokeStyle=rgbT(62,48,34); for(const [x,y] of T){g.lineWidth=s*.006;g.beginPath();g.moveTo(cx+(x-cx)*.2,s*.9);g.lineTo(x,y);g.stroke();}
+  for(const [x,y] of T){ const top=1-y/s; for(let k=0;k<needles;k++){ const a=-Math.PI/2+(r()-.5)*spread+(x-cx)/s*1.2, l=s*len*(.55+.6*r());
+      const col=pal[Math.floor(r()*pal.length)];const b=(.6+.5*top)*(.75+.4*r())*(k<needles*.3?.7:1);
+      g.strokeStyle=rgbT(Math.min(255,col[0]*b),Math.min(255,col[1]*b),Math.min(255,col[2]*b));g.lineWidth=s*width*(.8+.5*r());
+      const ox=x+(r()-.5)*s*.02,oy=y+(r()-.5)*s*.02; g.beginPath();g.moveTo(ox,oy);g.quadraticCurveTo(ox+Math.cos(a)*l*.5+(r()-.5)*4,oy+Math.sin(a)*l*.5,ox+Math.cos(a)*l,oy+Math.sin(a)*l);g.stroke(); } } };}
+// neutral-bright leaf albedos; per-tree colour (season / species) comes from the instance tint
+const T_LEAF=leafAtlas(MOBILE?512:1024,drawLeaves([[78,104,44],[96,122,52],[118,138,60],[64,90,38],[138,150,70],[88,112,56]],{n:1400}),[50,66,30]);
+const T_NEED=leafAtlas(MOBILE?512:1024,drawNeedlesT([[70,96,40],[86,112,46],[104,126,54],[60,84,36],[120,136,62]],{tufts:40}),[46,62,28]);
+function cardsGeoT(cards){ const pos=[],nor=[],uv=[],col=[],idx=[];let vi=0;
+  for(const cd of cards){ const n=cd.n.clone().normalize(); const t=new V3(0,1,0).cross(n); if(t.lengthSq()<1e-4)t.set(1,0,0); t.normalize(); const b=n.clone().cross(t).normalize();
+    if(cd.rot){t.applyAxisAngle(n,cd.rot);b.applyAxisAngle(n,cd.rot);} const u0=(cd.cell%2)*.5,v0=(cd.cell>>1)*.5;
+    for(const [a,bb] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const p=cd.c.clone().addScaledVector(t,a*cd.s).addScaledVector(b,bb*cd.s); pos.push(p.x,p.y,p.z); const N=cd.out(p);nor.push(N.x,N.y,N.z);
+      uv.push(u0+(a+1)*.25, v0+(1-bb)*.25); const ao=cd.ao*(bb<0?.86:1); col.push(ao*cd.tint[0],ao*cd.tint[1],ao*cd.tint[2]); }
+    idx.push(vi,vi+1,vi+2,vi,vi+2,vi+3);vi+=4; }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setIndex(idx);return g; }
+const cardVarT=r=>{const v=.85+.3*r();return [v*(1+(r()-.5)*.12),v,v*(1+(r()-.5)*.12)];};
+function crownLobedT(n,seed,{center=new V3(0,.62,0),rad=new V3(.42,.33,.42),lobes=9,sMin=.1,sMax=.155}={}){ const r=mulberry32(seed);const L=[];
+  for(let i=0;i<lobes;i++){const d=new V3(r()*2-1,r()*1.3-.35,r()*2-1).normalize();L.push(center.clone().add(d.multiply(rad).multiplyScalar(.62)));}
+  const out=p=>p.clone().sub(center).divide(rad).normalize().add(new V3(0,.25,0)).normalize(); const cards=[];
+  for(let i=0;i<n;i++){const lob=L[i%lobes];const p=lob.clone().add(randUnitT(r).multiply(rad).multiplyScalar(.5*Math.cbrt(r())));
+    const o=out(p);const nrm=o.clone().add(randUnitT(r).multiplyScalar(.7)).normalize(); const depth=p.clone().sub(center).divide(rad).length();const hy=(p.y-center.y)/rad.y;
+    const ao=(.55+.45*smooth(.15,1.05,depth))*(.8+.2*smooth(-1,1,hy)); cards.push({c:p,n:nrm,s:sMin+(sMax-sMin)*r(),out,ao,tint:cardVarT(r),cell:Math.floor(r()*4),rot:(r()-.5)*.9});}
+  return cards;}
+function crownPadsT(n,seed,{pads=6,y0=.5,y1=.95,rmax=.3,padR=.18,padH=.06,sMin=.08,sMax=.13}={}){ const r=mulberry32(seed);const P=[];
+  for(let i=0;i<pads;i++){const a=r()*6.283,rr=(i===0?0:.1+r()*rmax);P.push(new V3(Math.cos(a)*rr,i===0?y1:y0+(y1-y0)*r(),Math.sin(a)*rr));} const cards=[];
+  for(let i=0;i<n;i++){const pc=P[i%pads];const pr=padR*(i%pads===0?.8:1); const d=randUnitT(r);const p=pc.clone().add(new V3(d.x*pr,d.y*padH,d.z*pr).multiplyScalar(Math.cbrt(r())));
+    const out=q=>new V3((q.x-pc.x)/pr*.5,1,(q.z-pc.z)/pr*.5).normalize(); const nrm=new V3((r()-.5)*.9,1,(r()-.5)*.9).normalize();
+    const depth=new V3((p.x-pc.x)/pr,(p.y-pc.y)/padH,(p.z-pc.z)/pr).length(); const ao=(.6+.4*smooth(-.6,1,(p.y-pc.y)/padH))*(.85+.15*smooth(.1,1,depth));
+    cards.push({c:p,n:nrm,s:sMin+(sMax-sMin)*r(),out,ao,tint:cardVarT(r),cell:Math.floor(r()*4),rot:(r()-.5)*1.2});}
+  return {cards,P};}
+// trunk + main limbs (unit tree space; scaled by w,h,w per instance)
+function woodGeo(kind,detail,P){ const parts=[]; const seg=detail?7:4;
+  const lean=kind==='pine'?.07:0; const tr=new THREE.CylinderGeometry(kind==='pine'?.014:.017,kind==='pine'?.03:.034,kind==='pine'?.9:.6,seg); tr.translate(0,kind==='pine'?.45:.3,0); if(lean) tr.rotateZ(-lean); parts.push(ni(tr));
+  if(detail){ const r=mulberry32(kind==='pine'?5:9); const ends=kind==='pine'?P.slice(1):[...Array(5)].map((_,i)=>{const a=i/5*6.283+r();return new V3(Math.cos(a)*.22,.5+r()*.2,Math.sin(a)*.22);});
+    for(const e of ends){ const o=new V3(kind==='pine'?-lean*e.y*1.2:0,Math.min(e.y*.72,kind==='pine'?.7:.45),0); const d=e.clone().sub(o); const L=d.length();
+      const c=new THREE.CylinderGeometry(.006,.012,L,4); c.translate(0,L/2,0); c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(0,1,0),d.normalize())); c.translate(o.x,o.y,o.z); parts.push(ni(c)); } }
+  const g=mergeGeometries(parts); for(const n of Object.keys(g.attributes)) if(!['position','normal'].includes(n)) g.deleteAttribute(n); return g; }
+function realTreeGeo(kind,detail){
+  let cards,P=null;
+  if(kind==='pine'){ const cp=crownPadsT(detail?220:34,31,detail?{pads:8,padR:.2,padH:.075,sMin:.045,sMax:.075}:{pads:6,padR:.2,padH:.08,sMin:.13,sMax:.19}); cards=cp.cards; P=cp.P; }
+  else cards=crownLobedT(detail?300:40,11,detail?{lobes:11,sMin:.055,sMax:.095}:{sMin:.22,sMax:.3});
+  const leaves=cardsGeoT(cards).toNonIndexed(); const wood=woodGeo(kind,detail,P||[]);
+  const wpos=wood.attributes.position.count; wood.setAttribute('uv',new THREE.Float32BufferAttribute(new Float32Array(wpos*2),2)); wood.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(wpos*3).fill(1),3));
+  return mergeGeometries([leaves,wood],true); }
+const RGEO={broad:[realTreeGeo('broad',0),realTreeGeo('broad',1)], pine:[realTreeGeo('pine',0),realTreeGeo('pine',1)]};
+function foliageMatT(tex){ const m=new THREE.MeshStandardMaterial({map:tex,vertexColors:true,alphaTest:.42,alphaToCoverage:!MOBILE,side:THREE.DoubleSide,roughness:.62,envMapIntensity:1.2});
+  m.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;','float faceDirection = 1.0;')
+    .replace('float dotNL = saturate( dot( geometryNormal, directLight.direction ) );','float dotNL = saturate( dot( geometryNormal, directLight.direction )*.55+.45 );')
+    .replace('#include <map_fragment>','#include <map_fragment>\n{vec2 tu=vMapUv*1024.;vec2 a=dFdx(tu),b=dFdy(tu);float mip=max(0.,.5*log2(max(dot(a,a),dot(b,b))));diffuseColor.a*=1.+mip*.3;}'); };
+  m.customProgramCacheKey=()=>'foliageT'+tex.id; return m; }
+const BARK_T=new THREE.MeshStandardMaterial({color:new THREE.Color().setRGB(.20,.16,.13,THREE.SRGBColorSpace),roughness:.95});
+BARK_T.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <color_fragment>',''); }; BARK_T.customProgramCacheKey=()=>'barkT';
+const FOLM={broad:[foliageMatT(T_LEAF),BARK_T], pine:[foliageMatT(T_NEED),BARK_T]};
+const FOLD={broad:new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:T_LEAF,alphaTest:.42}), pine:new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:T_NEED,alphaTest:.42})};
+const LEAF_REF=[.20,.27,.12];
 const TREE_CHUNKS=[];
 {
   const groups=new Map(); for(const t of TREES){ const k=t.kind+'|'+Math.floor(t.x/400)+','+Math.floor(t.z/400); (groups.get(k)||groups.set(k,[]).get(k)).push(t); }
   const M4=new THREE.Matrix4(), Qt=new THREE.Quaternion(), S=new V3(), P=new V3(), Y=new V3(0,1,0);
   for(const [k,list] of groups){ const kind=k.split('|')[0];
-    const im=new THREE.InstancedMesh(TGEO[kind][1], MAT_TREE[0], list.length);
-    const icR=new THREE.InstancedBufferAttribute(new Float32Array(list.length*3),3), icP=new THREE.InstancedBufferAttribute(new Float32Array(list.length*3),3);
+    const im=new THREE.InstancedMesh(TGEO[kind][1], MAT_TREE[1], list.length);          // pastel blobs
+    const ir=new THREE.InstancedMesh(RGEO[kind][1], FOLM[kind], list.length);           // real leaf cards + wood
+    const icP=new THREE.InstancedBufferAttribute(new Float32Array(list.length*3),3), icR=new THREE.InstancedBufferAttribute(new Float32Array(list.length*3),3);
     let cx=0,cz=0;
-    list.forEach((t,i)=>{ Qt.setFromAxisAngle(Y,t.rot); S.set(t.w,t.h,t.w); P.set(t.x,t.y,t.z); M4.compose(P,Qt,S); im.setMatrixAt(i,M4); icR.setXYZ(i,t.cR.r,t.cR.g,t.cR.b); icP.setXYZ(i,t.cP.r,t.cP.g,t.cP.b); cx+=t.x; cz+=t.z; });
-    im.instanceColor=icR; im.userData.ic=[icR,icP]; im.castShadow=true; im.receiveShadow=true; im.computeBoundingSphere();
-    reg(im, MAT_TREE[0], MAT_TREE[1]); scene.add(im);
-    TREE_CHUNKS.push({im, kind, c:new V3(cx/list.length,0,cz/list.length), lod:1});
-    TRIS+=list.length*TGEO[kind][0].attributes.position.count/3;
+    list.forEach((t,i)=>{ Qt.setFromAxisAngle(Y,t.rot); S.set(t.w,t.h,t.w); P.set(t.x,t.y,t.z); M4.compose(P,Qt,S); im.setMatrixAt(i,M4); ir.setMatrixAt(i,M4);
+      icP.setXYZ(i,t.cP.r,t.cP.g,t.cP.b);
+      const c=new THREE.Color(t.cR).convertLinearToSRGB(); icR.setXYZ(i,Math.min(2.4,c.r/LEAF_REF[0]*.8),Math.min(1.4,c.g/LEAF_REF[1]*.8),Math.min(1.4,c.b/LEAF_REF[2]*.8));
+      cx+=t.x; cz+=t.z; });
+    im.instanceColor=icP; im.castShadow=true; im.receiveShadow=true; im.computeBoundingSphere(); pastelOnly.push(im); im.visible=false; scene.add(im);
+    ir.instanceColor=icR; ir.castShadow=true; ir.receiveShadow=true; ir.customDepthMaterial=FOLD[kind]; ir.computeBoundingSphere(); realOnly.push(ir); scene.add(ir);
+    TREE_CHUNKS.push({im, ir, kind, c:new V3(cx/list.length,0,cz/list.length), lod:1});
+    TRIS+=list.length*RGEO[kind][0].attributes.position.count/3;
   }
 }
-function updateTreeLOD(cam){ for(const tc of TREE_CHUNKS){ const d=cam.position.distanceTo(tc.c); const want=d<(MOBILE?300:480)?1:0; if(want!==tc.lod){ tc.lod=want; tc.im.geometry=TGEO[tc.kind][want]; } } }
+function updateTreeLOD(cam){ for(const tc of TREE_CHUNKS){ const d=cam.position.distanceTo(tc.c); const want=d<(MOBILE?300:520)?1:0; if(want!==tc.lod){ tc.lod=want; tc.im.geometry=TGEO[tc.kind][want]; tc.ir.geometry=RGEO[tc.kind][want]; } } }
 
 // ---------- distant mountains ringing the Kyoto basin (Higashiyama E, Kitayama N, Nishiyama/Arashiyama W; open to the south) ----------
 {
@@ -981,7 +1070,7 @@ function updateTreeLOD(cam){ for(const tc of TREE_CHUNKS){ const d=cam.position.
     const sx=7+rr()*16, sz=7+rr()*18; const hh=(rr()<.12? 18+rr()*16 : 5+rr()*8)*(1-.35*smooth(2500,4700,d));
     M4.makeScale(sx,hh,sz).setPosition(x,0,z); im.setMatrixAt(n,M4);
     const v=.52+.3*rr(); const c=sRGBc(v,v*.985,v*.95); icR.setXYZ(n,c.r,c.g,c.b); const p=pickP(PASTEL_WALL.house,rr()); icP.setXYZ(n,p.r,p.g,p.b); n++; }
-  im.count=n; im.instanceColor=icR; im.userData.ic=[icR,icP]; im.castShadow=false; im.receiveShadow=true; im.computeBoundingSphere();
+  im.count=n; im.name='filler'; im.instanceColor=icR; im.userData.ic=[icR,icP]; im.castShadow=false; im.receiveShadow=true; im.computeBoundingSphere();
   reg(im,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.9}),toon(hex('#ffffff'))); scene.add(im); TRIS+=n*12;
   // Kamo river (approximate straight course beyond the data radius)
   const gr=new GB(); gr.quad([2062,-.2,-4800],[2138,-.2,-4800],[2138,-.2,4800],[2062,-.2,4800],[0,0],[1,0],[1,1],[0,1],0,sRGBc(.30,.36,.24),hexc('#c4e6d8'),[0,1,0]);
@@ -1051,7 +1140,7 @@ let envTex=null;
 }
 
 // ---------- lights ----------
-const REAL={sun:8.0, env:.9, exposure:1.0, sunCol:srgb(1,.93,.82), fog:srgb(.60,.66,.74), fogD:0.00016};
+const REAL={sun:9.5, env:.85, exposure:1.0, sunCol:srgb(1,.92,.80), fog:srgb(.68,.77,.90), fogD:0.000075};
 const hemi=new THREE.HemisphereLight(srgb(.75,.82,.95),srgb(.25,.30,.18),0);scene.add(hemi);
 const sun=new THREE.DirectionalLight(REAL.sunCol,REAL.sun);scene.add(sun,sun.target);
 sun.castShadow=true; const SHADOW_RES=MOBILE?2048:4096; sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES); sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.6;
@@ -1103,7 +1192,7 @@ const ponds=new THREE.Mesh(PONDS_GEO); ponds.rotation.x=-Math.PI/2; ponds.positi
 
 // ---------- style switching ----------
 let curStyle=-1;
-const FOGP=[srgb(.98,.92,.90),0.000085];
+const FOGP=[srgb(.98,.92,.90),0.00004];
 function applyStyle(s){
   if(s!==curStyle){curStyle=s;for(const m of styled){m.material=m.userData.m[s];if(m.userData.ca)m.geometry.setAttribute('color',m.userData.ca[s]);if(m.userData.ic)m.instanceColor=m.userData.ic[s];}
     for(const m of realOnly)m.visible=!s; for(const m of pastelOnly)m.visible=!!s;}
@@ -1112,6 +1201,115 @@ function applyStyle(s){
   scene.fog.color.copy(fc);scene.fog.density=fd;waterU.uFog.value.copy(fc);waterU.uFogD.value=fd;
   sun.color.copy(s?srgb(1,.95,.86):REAL.sunCol);sun.intensity=s?2.4:REAL.sun;hemi.intensity=s?1.9:0;scene.environmentIntensity=REAL.env;
 }
+
+// =====================================================================
+//  REAL DATA LAYERS: GSI aerial photo ground (地理院タイル seamlessphoto), GSI DEM terrain + mountains,
+//  PLATEAU (MLIT) LOD2 textured building models streamed as 3D Tiles
+// =====================================================================
+await tick('항공사진·지형·PLATEAU 건물');
+const USE_TILES = params.get('tiles')!=='0';
+const TERR_N=257, OFF_N=512;
+let OFFTEX=null, TERR=null;
+{
+  const ld=(u)=>new Promise(r=>new THREE.TextureLoader().load(u,t=>r(t),undefined,()=>r(null)));
+  const [aNear,aMid,aFar,tb]=await Promise.all([ld('aerial_near.jpg'),ld('aerial_mid.jpg'),ld('aerial_far.jpg'),fetch('terrain.bin').then(r=>r.ok?r.arrayBuffer():null).catch(()=>null)]);
+  for(const t of [aNear,aMid,aFar]) if(t){ t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); t.minFilter=THREE.LinearMipmapLinearFilter; t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; }
+  if(aNear){ AERU.value=aNear; AERK.value=1; }
+  if(tb){ const f=new Float32Array(tb); const off=f.subarray(0,OFF_N*OFF_N); TERR=f.subarray(OFF_N*OFF_N);
+    const h=new Uint16Array(off.length); for(let i=0;i<off.length;i++) h[i]=THREE.DataUtils.toHalfFloat(off[i]);
+    OFFTEX=new THREE.DataTexture(h,OFF_N,OFF_N,THREE.RedFormat,THREE.HalfFloatType); OFFTEX.magFilter=OFFTEX.minFilter=THREE.LinearFilter; OFFTEX.flipY=false; OFFTEX.needsUpdate=true; }
+  // ---- terrain beyond the OSM area: GSI DEM (dem_png z12/z14) with earth curvature, draped with the GSI aerial photo ----
+  if(TERR && aFar){
+    const N=TERR_N, S=48000; const pos=new Float32Array(N*N*3); for(let j=0;j<N;j++)for(let i=0;i<N;i++){ const k=j*N+i; pos[k*3]=-24000+i*S/(N-1); pos[k*3+2]=-24000+j*S/(N-1); pos[k*3+1]=TERR[k]; }
+    const idx=[]; for(let j=0;j<N-1;j++)for(let i=0;i<N-1;i++){ const a=j*N+i,b=a+1,c=a+N,d=c+1; const cx=pos[a*3]+94,cz=pos[a*3+2]+94; if(Math.hypot(cx,cz)<1850) continue; idx.push(a,c,b,b,c,d); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+    const tU={tNear:{value:aNear},tMid:{value:aMid||aFar},tFar:{value:aFar}};
+    const patch=(m,pastel)=>{ m.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,tU);
+      sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vTW;').replace('#include <project_vertex>','#include <project_vertex>\nvTW=(modelMatrix*vec4(transformed,1.)).xyz;');
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D tNear,tMid,tFar;varying vec3 vTW;').replace('#include <map_fragment>',`{
+        vec2 uf=vec2((vTW.x+24000.)/48000.,1.-(vTW.z+24000.)/48000.); vec3 a=texture2D(tFar,uf).rgb;
+        vec2 un=vec2((vTW.x+2400.)/4800.,1.-(vTW.z+2400.)/4800.); float inN=step(abs(vTW.x),2380.)*step(abs(vTW.z),2380.);
+        vec2 um=vec2((vTW.x+8000.)/16000.,1.-(vTW.z+8000.)/16000.); float inM=step(abs(vTW.x),7950.)*step(abs(vTW.z),7950.);
+        if(inN>.5) a=texture2D(tNear,un).rgb; else if(inM>.5) a=texture2D(tMid,um).rgb;
+        ${pastel?`float l=dot(a,vec3(.3,.59,.11)); float gr=smoothstep(.0,.06,a.g-max(a.r,a.b)*.9); vec3 pc=mix(vec3(.98,.90,.86),vec3(.74,.90,.80),gr); pc=mix(pc,vec3(.86,.84,.96),smoothstep(.25,.6,l)*(1.-gr)*.5); diffuseColor.rgb=pc*(.85+.3*sqrt(l));`
+                :`diffuseColor.rgb=a*vec3(1.0,1.02,.96);`} }`); };
+      m.customProgramCacheKey=()=>'terrain'+(pastel?'p':'r'); return m; };
+    const mt=new THREE.Mesh(g); mt.receiveShadow=true; mt.name='terrain';
+    reg(mt, patch(new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,metalness:0,envMapIntensity:.45}),false), patch(toon(hex('#ffffff')),true)); scene.add(mt); TRIS+=idx.length/3;
+    for(const nm of ['outer','mountains','kamo']){ const o=scene.getObjectByName(nm); if(o) o.visible=false, o.userData.off=true; }
+    for(const m of styled) if(m.userData.off){ m.userData.keepHidden=true; }
+  }
+}
+// ---- PLATEAU LOD2 textured buildings (3D Tiles, CC BY 4.0-compatible PLATEAU licence), streamed from the PLATEAU CMS ----
+const TILESETS=[];
+const PLATEAU_WARDS=[
+ 'https://assets.cms.plateau.reearth.io/assets/04/eaac56-936e-49e2-a91b-0db31a6ed192/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26104_nakagyo-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/71/0af6ab-875e-4c69-bb5e-9e06096e6fcb/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26102_kamigyo-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/f0/2ed501-5480-4ccb-8293-9469a3856f9a/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26106_shimogyo-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/64/cf6354-e5ff-4ee4-84d6-1751734da17c/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26108_ukyo-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/7a/918715-89fb-4f45-a48a-a77ee6288577/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26101_kita-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/25/dd4c50-5342-4a0b-ac51-05ffb138b8b5/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26105_higashiyama-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/96/d17b9d-5527-4610-90c8-9e9c44d500c3/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26103_sakyo-ku_lod2/tileset.json',
+ 'https://assets.cms.plateau.reearth.io/assets/1c/596e87-af58-4394-a4e7-ef429ba5732c/26100_kyoto-shi_city_2025_citygml_1_op_bldg_3dtiles_26107_minami-ku_lod2/tileset.json'];
+let tilesShown=false, tileModels=0;
+const MAXT = +(params.get('tex')|| (MOBILE?1024:(CAPTURE?1024:1536)));
+// castle mask: PLATEAU's own castle models are hidden inside the castle ring (the detailed procedural castle is used there)
+const CM={x0:Infinity,x1:-Infinity,z0:Infinity,z1:-Infinity};
+for(const p of CASTLE_RING){CM.x0=Math.min(CM.x0,p[0]);CM.x1=Math.max(CM.x1,p[0]);CM.z0=Math.min(CM.z0,p[1]);CM.z1=Math.max(CM.z1,p[1]);}
+const castleMask=(()=>{ const c=document.createElement('canvas'); c.width=c.height=512; const g=c.getContext('2d'); g.fillStyle='#000'; g.fillRect(0,0,512,512); g.fillStyle='#fff'; g.beginPath();
+  CASTLE_RING.forEach((p,i)=>{ const x=(p[0]-CM.x0)/(CM.x1-CM.x0)*512, y=(p[1]-CM.z0)/(CM.z1-CM.z0)*512; i?g.lineTo(x,y):g.moveTo(x,y); }); g.closePath(); g.fill();
+  g.lineWidth=10; g.strokeStyle='#fff'; g.stroke(); const t=new THREE.CanvasTexture(c); t.flipY=false; return t; })();
+const TU={tOff:{value:OFFTEX},uOffK:{value:OFFTEX?1:0},tCM:{value:castleMask},uCM:{value:new THREE.Vector4(CM.x0,CM.z0,1/(CM.x1-CM.x0),1/(CM.z1-CM.z0))}};
+const TILE_VS_HEAD=`uniform sampler2D tOff;uniform float uOffK;varying vec3 vTW;
+  vec4 flatW(vec4 w){ vec2 u=(w.xz+12000.)/24000.; w.y+=uOffK*texture2D(tOff,u).r; return w; }`;
+function tilePatch(m,kind){
+  m.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,TU);
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\n'+TILE_VS_HEAD)
+      .replace('#include <project_vertex>',`vec4 wpF=flatW(modelMatrix*vec4(transformed,1.)); vTW=wpF.xyz; vec4 mvPosition=viewMatrix*wpF; gl_Position=projectionMatrix*mvPosition;`)
+      .replace('#include <worldpos_vertex>',`vec4 worldPosition=wpF;`);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+      uniform sampler2D tCM;uniform vec4 uCM;varying vec3 vTW;
+      float th2(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5);}`)
+      .replace('#include <clipping_planes_fragment>',`#include <clipping_planes_fragment>
+      { vec2 cu=(vTW.xz-uCM.xy)*uCM.zw; if(cu.x>0.&&cu.x<1.&&cu.y>0.&&cu.y<1.&&texture2D(tCM,cu).r>.5) discard; }`);
+    if(kind==='real') sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      { float l=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722)); diffuseColor.rgb=max(vec3(0.),l+1.12*(diffuseColor.rgb-l))*1.06; }`);
+    if(kind==='pastel') sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      { vec3 c=diffuseColor.rgb; float l=dot(c,vec3(.3,.59,.11)); float h=th2(floor(vTW.xz/9.));
+        vec3 tint=h<.3?vec3(.99,.86,.80):h<.55?vec3(.86,.84,.97):h<.8?vec3(.80,.93,.86):vec3(.99,.93,.76);
+        diffuseColor.rgb=pow(tint*(.80+.32*sqrt(l)),vec3(2.2)); }`);
+    if(kind==='depth') sh.vertexShader=sh.vertexShader; };
+  m.customProgramCacheKey=()=>'plateau-'+kind; return m; }
+const DEPTH_MAT=tilePatch(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking}),'depth');
+function shrinkTex(t){ const im=t&&t.image; if(!im||!im.width||im.width<=MAXT) return; const s=MAXT/Math.max(im.width,im.height);
+  const c=document.createElement('canvas'); c.width=Math.round(im.width*s); c.height=Math.round(im.height*s); c.getContext('2d').drawImage(im,0,0,c.width,c.height); if(im.close) im.close(); t.image=c; t.needsUpdate=true; }
+function onTileModel({scene:root}){
+  tileModels++;
+  root.traverse(o=>{ if(!o.isMesh) return; const om=o.material; const map=om.map||null; if(map){ shrinkTex(map); map.colorSpace=THREE.SRGBColorSpace; map.anisotropy=4; }
+    const real=tilePatch(new THREE.MeshStandardMaterial({map,color:map?0xffffff:new THREE.Color().setRGB(.62,.60,.57,THREE.SRGBColorSpace),roughness:.86,metalness:0,envMapIntensity:.8}),'real');
+    const pas=tilePatch(new THREE.MeshToonMaterial({map,color:0xffffff,gradientMap:grad}),'pastel');
+    om.dispose(); o.customDepthMaterial=DEPTH_MAT; o.castShadow=true; o.receiveShadow=true; reg(o,real,pas); o.material=curStyle===1?pas:real; });
+  if(!tilesShown){ tilesShown=true; scene.traverse(o=>{ if(o.name&&(o.name.startsWith('bld')||o.name==='filler')) o.visible=false; }); STATS.plateau=true; updateBadge&&updateBadge(); }
+}
+function onTileDispose({scene:root}){ root.traverse(o=>{ if(!o.isMesh) return; const i=styled.indexOf(o); if(i>=0) styled.splice(i,1); for(const m of o.userData.m||[]) m.dispose(); if(o.material&&o.material.map) o.material.map.dispose(); }); }
+if(USE_TILES){
+  const { TilesRenderer, WGS84_ELLIPSOID } = await import('3d-tiles-renderer');
+  const { GLTFExtensionsPlugin } = await import('3d-tiles-renderer/plugins');
+  const { DRACOLoader } = await import('three/addons/loaders/DRACOLoader.js');
+  const draco=new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
+  const enu=new THREE.Matrix4(); WGS84_ELLIPSOID.getEastNorthUpFrame(35.0142*Math.PI/180,135.7481*Math.PI/180,40.8+37.3,enu);
+  const G=new THREE.Matrix4().makeRotationX(-Math.PI/2).multiply(enu.clone().invert());
+  for(const url of PLATEAU_WARDS){
+    const t=new TilesRenderer(url); t.registerPlugin(new GLTFExtensionsPlugin({dracoLoader:draco}));
+    t.errorTarget=+(params.get('err')||(MOBILE?22:(CAPTURE?16:14))); t.lruCache.maxBytesSize=64*1024**3; t.lruCache.minBytesSize=48*1024**3; const LRU=+(params.get('lru')||(MOBILE?120:300)); t.lruCache.maxSize=LRU; t.lruCache.minSize=Math.round(LRU*.7); if(TILESETS.length){ const f=TILESETS[0]; t.parseQueue=f.parseQueue; t.downloadQueue=f.downloadQueue; } else { t.parseQueue.maxJobs=CAPTURE?1:2; t.downloadQueue.maxJobs=MOBILE?4:8; }
+    t.group.matrixAutoUpdate=false; t.group.matrix.copy(G); t.group.matrixWorldNeedsUpdate=true;
+    t.setCamera(camera); t.setResolutionFromRenderer(camera,renderer);
+    t.addEventListener('load-model',onTileModel); t.addEventListener('dispose-model',onTileDispose);
+    t.addEventListener('load-error',e=>console.warn('PLATEAU tile load error',e&&e.url));
+    scene.add(t.group); TILESETS.push(t); }
+}
+function tilesUpdate(){ for(const t of TILESETS){ t.setResolutionFromRenderer(camera,renderer); t.update(); } }
+function tilesBusy(){ for(const t of TILESETS){ if(t.loadProgress<1) return true; } return false; }
 
 // =====================================================================
 //  CAMERA MODES: 궤도 (orbit) · 드론 (free flight) · 걷기 (first-person walk)
@@ -1226,6 +1424,8 @@ function navUpdate(dt){
 
 const ATTR_HTML=`<b>데이터·자료 출처</b><br>
 지도(도로·건물·물길·녹지·나무): © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>, ODbL 1.0 (Geofabrik 간사이 추출본, 2026-11-13)<br>
+건물 3D 모델: 出典 <a href="https://www.mlit.go.jp/plateau/" target="_blank">国土交通省 3D都市モデル（Project PLATEAU）</a> 京都市（2025年度） LOD2 텍스처 3D Tiles, <a href="https://www.mlit.go.jp/plateau/site-policy/" target="_blank">PLATEAU 이용약관</a> (CC BY 4.0 호환) — 3D Tiles 스트리밍: <a href="https://github.com/NASA-AMMOS/3DTilesRendererJS" target="_blank">3DTilesRendererJS</a> (Apache-2.0)<br>
+항공사진·지형: 出典 <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院 地理院タイル</a> (シームレス空中写真, 標高タイル DEM10B) — 색 보정·재투영 가공<br>
 하늘/조명 HDRI: <a href="https://polyhaven.com/a/pretoria_gardens" target="_blank">Poly Haven “Pretoria Gardens”</a> (CC0)<br>
 색 기준 참고 사진 (Wikimedia Commons):<br>
 · 東大手門 — Zairon, “Kyoto Nijo-jo Osttor 1”, CC BY-SA 4.0<br>
@@ -1257,7 +1457,7 @@ const post=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{
     tReal:{value:rtR.texture},tPastel:{value:rtP.texture},tDepth:{value:rtP.depthTexture},tDepthR:{value:rtR.depthTexture},tBloom:{value:rtB1.texture},
     uRes:{value:new THREE.Vector2(W*DPR,H*DPR)},uProg:{value:0},uTime:{value:0},uNear:{value:camera.near},uFar:{value:camera.far},uScale:{value:DPR},
     uInvProj:{value:new THREE.Matrix4()},uProjY:{value:1},
-    uExposure:{value:REAL.exposure},uTM:{value:1},uContrast:{value:1.08},uSat:{value:.95},uAO:{value:.85},uAOR:{value:1.3},uAOK:{value:1.1},uBloomStr:{value:.05},uVig:{value:.28},
+    uExposure:{value:REAL.exposure},uTM:{value:1},uContrast:{value:1.13},uSat:{value:1.14},uAO:{value:.85},uAOR:{value:1.3},uAOK:{value:1.1},uBloomStr:{value:.05},uVig:{value:.28},
     uLift:{value:new THREE.Vector3(.015,.018,.035)},uGamma:{value:new THREE.Vector3(1,1,1)},uGain:{value:new THREE.Vector3(1,1,1)},
     uShadowTint:{value:new THREE.Vector3(.97,.99,1.03)},uHighTint:{value:new THREE.Vector3(1.03,1.0,.96)},
     uP3:{value:0},uDither:{value:1/255}},
@@ -1388,7 +1588,7 @@ function update(dt){
     if(u>=1)stopFly();}
   else if(NAV.mode!=='orbit'){ navUpdate(dt); }
   else {controls.update(); if(camera.position.y<1.6){camera.position.y=1.6;}}
-  updateNearFar(); updateTreeLOD(camera); fitShadow(); needle.style.transform=`rotate(${Math.atan2(camera.position.x-(flying?flyLook:NAV.mode!=='orbit'?NAV.look:controls.target).x, camera.position.z-(flying?flyLook:NAV.mode!=='orbit'?NAV.look:controls.target).z)*-180/Math.PI+180}deg)`;
+  updateNearFar(); updateTreeLOD(camera); fitShadow(); camera.updateMatrixWorld(); tilesUpdate(); needle.style.transform=`rotate(${Math.atan2(camera.position.x-(flying?flyLook:NAV.mode!=='orbit'?NAV.look:controls.target).x, camera.position.z-(flying?flyLook:NAV.mode!=='orbit'?NAV.look:controls.target).z)*-180/Math.PI+180}deg)`;
   sky.position.copy(camera.position);
   skyU.uTime.value=simT;waterU.uTime.value=simT;post.uniforms.uTime.value=simT;
 }
@@ -1421,10 +1621,10 @@ addEventListener('resize',()=>{if(CAPTURE)return;W=innerWidth;H=innerHeight;came
   Object.assign(post.uniforms,{});post.uniforms.tReal.value=rtR.texture;post.uniforms.tPastel.value=rtP.texture;post.uniforms.tDepth.value=rtP.depthTexture;post.uniforms.tDepthR.value=rtR.depthTexture;post.uniforms.tBloom.value=rtB1.texture;post.uniforms.uRes.value.set(W*DPR,H*DPR);
   water.getRenderTarget().setSize(W*DPR*RS,H*DPR*RS);});
 
-window.APP={THREE,setMode,NAV,keys,walkable,groundY,hgtAt,
+window.APP={THREE,tilesBusy,get tileModels(){return tileModels;},TILESETS,setMode,NAV,keys,walkable,groundY,hgtAt,
   toggleStyle,setStyleInstant,startFly,stopFly,U:post.uniforms,WU:waterU,SKY:skyU,REAL,sun,scene,OUT,renderer,STATS,castleNamed,camera,controls,
   get flyT(){return flyT;}, set flyT(v){flyT=v;},
-  step(dt){update(dt);render();},
+  step(dt){update(dt);render();}, tick(){camera.updateMatrixWorld();tilesUpdate();},
   advance(dt){update(dt);},
   setView(p,t){camera.position.set(...p);controls.target.set(...t);controls.update();},
   home(){camera.position.copy(HOME_POS);controls.target.copy(HOME_TGT);controls.update();},
