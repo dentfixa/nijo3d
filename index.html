@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>니조성 반경 2km 3D · 실사 ↔ 파스텔 화풍</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#cfd8e0;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
+  canvas{display:block;touch-action:none}
+  #ui{position:fixed;left:0;right:0;bottom:18px;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;pointer-events:none}
+  #ui button{pointer-events:auto;border:1px solid rgba(255,255,255,.55);background:rgba(20,22,30,.45);color:#fff;font-size:15px;padding:11px 18px;border-radius:999px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.18);transition:background .2s}
+  #ui button:hover{background:rgba(20,22,30,.65)}
+  #ui button.on{background:rgba(214,170,60,.8)}
+  #title{position:fixed;left:16px;top:14px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.45);pointer-events:none}
+  #title h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.02em}
+  #title p{margin:3px 0 0;font-size:13px;opacity:.9}
+  #mode{display:inline-block;margin-top:6px;font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.35)}
+  #badge{position:fixed;right:12px;top:14px;max-width:min(78vw,430px);color:#fff;font-size:11.5px;line-height:1.45;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:none;text-align:right}
+  #badge b{color:#ffd77a;font-weight:600}
+  #credit{position:fixed;right:10px;bottom:6px;color:rgba(255,255,255,.85);font-size:10px;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  #credit a{color:#ffe7a8}
+  #attr{position:fixed;right:10px;bottom:24px;max-width:min(92vw,560px);max-height:50vh;overflow:auto;background:rgba(15,15,20,.82);color:#eee;font-size:11.5px;line-height:1.5;padding:10px 14px;border-radius:10px;z-index:4}
+  #attr a{color:#ffd77a}
+  #compass{position:fixed;left:16px;bottom:22px;width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  #compass span{display:block;transform-origin:50% 50%}
+  #lprog{opacity:.7}
+  #ui .seg{display:inline-flex;pointer-events:auto;border-radius:999px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+  #ui .seg button{border-radius:0;box-shadow:none;margin:0;border-right-width:0;padding:11px 15px}
+  #ui .seg button:first-child{border-radius:999px 0 0 999px}#ui .seg button:last-child{border-radius:0 999px 999px 0;border-right-width:1px}
+  #guide{position:fixed;left:16px;top:96px;max-width:300px;color:#fff;font-size:12px;line-height:1.55;padding:8px 11px;border-radius:10px;background:rgba(0,0,0,.40);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:none;white-space:pre-line}
+  #guide b{color:#ffd77a}
+  #speedBox{position:fixed;right:14px;bottom:70px;color:#fff;font-size:12px;padding:8px 12px;border-radius:10px;background:rgba(0,0,0,.42)}
+  #speedBox input{width:170px}
+  #joy{position:fixed;left:28px;bottom:90px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.5);touch-action:none;z-index:3}
+  #joyKnob{position:absolute;left:38px;top:38px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.55)}
+  #vbtns{position:fixed;right:18px;bottom:150px;display:flex;flex-direction:column;gap:8px;z-index:3}
+  #vbtns button{width:64px;height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.55);background:rgba(20,22,30,.45);color:#fff;font-size:15px;touch-action:none}
+  body.capture #guide,body.capture #speedBox,body.capture #joy,body.capture #vbtns{display:none}
+  @media (max-width:600px){#guide{top:auto;bottom:150px;left:10px;font-size:10.5px;max-width:200px}#speedBox{bottom:120px}}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#e9e3d6;color:#5b4a3a;font-size:16px;transition:opacity .6s;z-index:5}
+  body.capture #ui,body.capture #title,body.capture #credit,body.capture #badge,body.capture #compass{display:none}
+  @media (max-width:600px){#ui button{font-size:13px;padding:9px 13px}#title h1{font-size:16px}#badge{top:auto;bottom:70px;font-size:10px}}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="loading"><div>니조성과 주변 2km 거리를 짓는 중… <span id="lprog"></span></div></div>
+<div id="title"><h1>니조성(二条城) 반경 2km · 교토</h1><p>실제 지도 데이터로 지은 거리·건물 · 드래그 회전, 우클릭/두 손가락 이동, 휠 확대</p><span id="mode">현재: 실사 3D</span></div>
+<div id="badge"></div>
+<div id="guide"></div>
+<div id="speedBox" hidden><label>드론 속도 <span id="speedVal">40</span> m/s<br><input id="speed" type="range" min="0" max="100" value="55"></label></div>
+<div id="joy" hidden><div id="joyKnob"></div></div>
+<div id="vbtns" hidden><button id="vUp">▲</button><button id="vDn">▼</button><button id="vRun">달리기</button></div>
+<div id="compass"><span id="needle">▲<br>N</span></div>
+<div id="ui">
+  <span class="seg"><button id="mOrbit" class="on">궤도</button><button id="mDrone">드론</button><button id="mWalk">걷기</button></span>
+  <button id="btnStyle">실사 3D ↔ 파스텔 화풍 (S)</button>
+  <button id="btnFly">자동 비행</button>
+  <button id="btnCastle">니조성 가까이</button>
+  <button id="btnReset">처음 시점</button>
+</div>
+<div id="credit">지도 데이터 © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a> (ODbL) · three.js 절차적 3D · HDRI: Poly Haven “Pretoria Gardens” (CC0) · <a href="#" id="attrLink">참고 사진 출처</a></div>
+<div id="attr" hidden></div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+
+const params = new URLSearchParams(location.search);
+const CAPTURE = params.has('capture');
+if (CAPTURE) document.body.classList.add('capture');
+const MOBILE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || Math.min(innerWidth, innerHeight) < 600;
+const V3 = THREE.Vector3;
+const lprog = document.getElementById('lprog');
+const tick = (msg)=>{ if(lprog) lprog.textContent = msg; return new Promise(r=>setTimeout(r,0)); };
+
+// ---------- utils ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const rand = mulberry32(20261114);
+const rnd = mulberry32(777);
+const R = (a,b)=>a+(b-a)*rand();
+function hash2(x,y){const h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floor(h);}
+function vnoise(x,y){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);const a=hash2(xi,yi),b=hash2(xi+1,yi),c=hash2(xi,yi+1),d=hash2(xi+1,yi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
+function fbm(x,y,o=4){let s=0,a=.5,f=1;for(let i=0;i<o;i++){s+=a*vnoise(x*f,y*f);f*=2.03;a*=.5;}return s/(1-Math.pow(.5,o));}
+const smooth=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+const srgb=(r,g,b)=>new THREE.Color().setRGB(r,g,b,THREE.SRGBColorSpace);
+const s255=(r,g,b)=>srgb(r/255,g/255,b/255);
+const hex=(h)=>new THREE.Color(h);
+const ni=g=>g.index?g.toNonIndexed():g;
+
+// ---------- renderer & output format ----------
+const renderer = new THREE.WebGLRenderer({antialias:false, powerPreference:'high-performance', preserveDrawingBuffer:CAPTURE});
+const DPR = CAPTURE ? 1 : Math.min(devicePixelRatio, MOBILE ? 1.25 : 1.75);
+renderer.setPixelRatio(DPR);
+let W = CAPTURE ? (+params.get('w')||1280) : innerWidth, H = CAPTURE ? (+params.get('h')||720) : innerHeight;
+renderer.setSize(W,H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+document.body.appendChild(renderer.domElement);
+const gl = renderer.getContext();
+const OUT = {p3:false, f16:false};
+function configureOutput(){
+  const p3q = params.get('p3');
+  const wantP3 = p3q==='1' || (p3q!=='0' && matchMedia('(color-gamut: p3)').matches);
+  try{ if(wantP3 && 'drawingBufferColorSpace' in gl) gl.drawingBufferColorSpace='display-p3'; OUT.p3 = gl.drawingBufferColorSpace==='display-p3'; }catch(e){ OUT.p3=false; }
+  OUT.f16=false;
+  if(params.get('f16')!=='0' && typeof gl.drawingBufferStorage==='function'){
+    try{ gl.drawingBufferStorage(gl.RGBA16F, gl.canvas.width, gl.canvas.height); OUT.f16 = gl.drawingBufferFormat===gl.RGBA16F; }catch(e){ OUT.f16=false; }
+  }
+}
+configureOutput();
+const badge=document.getElementById('badge');
+const STATS={tris:0,calls:0,buildings:0,roads:0,trees:0};
+function updateBadge(){
+  const hdr = matchMedia('(dynamic-range: high)').matches;
+  const bpc = Math.round((screen.colorDepth||24)/3);
+  badge.innerHTML = `내부 렌더링: <b>16비트 부동소수 HDR</b> (RGBA16F)<br>`+
+    `출력 캔버스: <b>${OUT.f16?'16비트 float':'8비트'}</b> · <b>${OUT.p3?'Display-P3':'sRGB'}</b> · 디더링<br>`+
+    `모니터 보고값: ${bpc}비트/채널${hdr?' · HDR 지원':''}<br>`+
+    `OSM 건물 <b>${STATS.buildings.toLocaleString()}</b>동 · 도로 ${STATS.roads.toLocaleString()}개 · 나무 ${STATS.trees.toLocaleString()}그루`;
+}
+updateBadge();
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, W/H, 1, 30000);
+// world axes: +x = east, -z = north, y = up (metres, origin = Nijo-jo centre)
+const HOME_POS = new V3(1350, 1050, 1750), HOME_TGT = new V3(-60, 0, 40);
+const CASTLE_POS = new V3(520, 95, 330), CASTLE_TGT = new V3(160, 8, 20);
+camera.position.copy(HOME_POS);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME_TGT);
+controls.enableDamping = true; controls.dampingFactor = .08;
+controls.maxPolarAngle = Math.PI*0.495; controls.minPolarAngle = 0.06; controls.minDistance = 12; controls.maxDistance = 6000;
+controls.screenSpacePanning = false; controls.zoomToCursor = true;
+controls.update();
+
+// ---------- texture helpers ----------
+function canvasTex(w,h,draw,{srgb:s=true,repeat,aniso=8}={}){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');draw(g,w,h);const t=new THREE.CanvasTexture(c);if(s)t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=aniso;if(repeat){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(...repeat);}return t;}
+const rgb=(r,g,b,a)=>a===undefined?`rgb(${r|0},${g|0},${b|0})`:`rgba(${r|0},${g|0},${b|0},${a})`;
+
+// ---------- facade / roof atlas (4x4 tiles, 512px each, RGB = albedo, A = glass mask) ----------
+// module size of each tile in metres [width, height]
+const TILE = {MACHIYA:0,HOUSE:1,HOUSE2:2,APART:3,OFFICE_GLASS:4,OFFICE_TILE:5,CONCRETE:6,PLASTER:7,KAWARA:8,ROOF_FLAT:9,ROOF_METAL:10,ISHIGAKI:11,SCHOOL:12,TEMPLE:13,SHOP:14,MACHIYA_UP:15};
+const MOD = [[3.6,3.0],[4.0,2.9],[4.0,2.9],[3.6,2.9],[3.2,3.8],[3.2,3.5],[4.0,3.0],[4.0,3.6],[2.4,2.4],[8,8],[3,3],[4.0,2.4],[4.0,3.6],[4.0,3.6],[4.5,3.4],[3.6,2.6]];
+const ATL=2048, TS=512;
+function buildAtlas(){
+  const c=document.createElement('canvas');c.width=c.height=ATL;const g=c.getContext('2d');
+  const cm=document.createElement('canvas');cm.width=cm.height=ATL;const gm=cm.getContext('2d');
+  gm.fillStyle='#000';gm.fillRect(0,0,ATL,ATL);
+  const r=mulberry32(4242);
+  const draw=[];
+  // helpers in metre space (y measured from tile bottom, up)
+  const T=(i,fn)=>draw[i]=fn;
+  function tileCtx(i){const tx=(i%4)*TS,ty=Math.floor(i/4)*TS,[mw,mh]=MOD[i];const sx=TS/mw,sy=TS/mh;
+    const R_=(x,y,w,h,col)=>{g.fillStyle=col;g.fillRect(tx+x*sx,ty+TS-(y+h)*sy,w*sx,h*sy);};
+    const G_=(x,y,w,h,a=1)=>{gm.fillStyle=`rgb(${255*a|0},${255*a|0},${255*a|0})`;gm.fillRect(tx+x*sx,ty+TS-(y+h)*sy,w*sx,h*sy);};
+    const N_=(n,col,sz=2)=>{for(let k=0;k<n;k++){g.fillStyle=col(r());g.fillRect(tx+r()*TS,ty+r()*TS,sz*(.5+r()),sz*(.5+r()));}};
+    return {tx,ty,mw,mh,sx,sy,R:R_,G:G_,N:N_};}
+  const glass=(t,x,y,w,h,frame='#b9bab6',dark=[62,72,82],a=1)=>{t.R(x-.05,y-.05,w+.1,h+.1,frame);
+    const gr=g.createLinearGradient(0,t.ty+TS-(y+h)*t.sy,0,t.ty+TS-y*t.sy);gr.addColorStop(0,rgb(dark[0]+18,dark[1]+22,dark[2]+28));gr.addColorStop(1,rgb(...dark));g.fillStyle=gr;
+    g.fillRect(t.tx+x*t.sx,t.ty+TS-(y+h)*t.sy,w*t.sx,h*t.sy);t.G(x,y,w,h,a);};
+  T(0,t=>{ // machiya ground floor: koshi lattice + ichimonji eave
+    t.R(0,0,t.mw,t.mh,'#2a1d15');
+    t.R(0,0,t.mw,.25,'#6d6a64');                                // stone footing
+    for(let x=0;x<t.mw;x+=.075)t.R(x,.25,.03,2.05,rgb(84+r()*14,58+r()*10,40+r()*8));
+    t.R(0,2.25,t.mw,.06,'#3a2a1e');t.R(0,.25,t.mw,.06,'#3a2a1e');
+    t.R(0,.25,.14,2.1,'#4e3626');t.R(t.mw-.14,.25,.14,2.1,'#4e3626');t.R(t.mw*.62,.25,.1,2.1,'#4e3626');
+    t.R(0,2.35,t.mw,.65,'#4a4b4f');for(let x=0;x<t.mw;x+=.16)t.R(x,2.35,.05,.65,'#35363a');t.R(0,2.35,t.mw,.07,'#2a2b2e'); // little tiled eave
+  });
+  T(15,t=>{ // machiya upper floor: cream plaster with mushiko-mado slits
+    t.R(0,0,t.mw,t.mh,rgb(206,196,176));t.N(900,v=>rgb(190+v*30,182+v*28,165+v*25,.35),3);
+    t.R(.8,.7,2.0,1.0,'#3b2a1e');for(let x=.85;x<2.8;x+=.16)t.R(x,.75,.08,.9,rgb(212,202,182));
+    t.R(0,0,.12,t.mh,'#4e3626');t.R(t.mw-.12,0,.12,t.mh,'#4e3626');t.R(0,t.mh-.12,t.mw,.12,'#4e3626');
+  });
+  T(1,t=>{ // modern house: siding
+    t.R(0,0,t.mw,t.mh,rgb(190,181,164));for(let y=0;y<t.mh;y+=.2)t.R(0,y,t.mw,.02,rgb(160,152,138));
+    t.N(500,v=>rgb(170+v*40,162+v*36,148+v*30,.25),2);
+    glass(t,1.2,.95,1.6,1.15,'#aeb0ad');t.R(1.1,.85,1.8,.08,'#8f908d');
+    t.R(0,0,t.mw,.08,'#7d7a74');
+  });
+  T(2,t=>{ // modern house 2: light mortar, small window + vent
+    t.R(0,0,t.mw,t.mh,rgb(210,206,198));t.N(1500,v=>rgb(190+v*40,186+v*40,178+v*40,.3),2);
+    glass(t,.6,1.0,1.2,1.0,'#9c9d9a');t.R(.55,2.02,1.3,.15,'#7c7c7a');
+    glass(t,2.6,1.3,.6,.6,'#9c9d9a',[60,66,70]);
+    t.R(0,t.mh-.1,t.mw,.1,'#9a9890');
+  });
+  T(3,t=>{ // apartment: balcony + sliding doors
+    t.R(0,0,t.mw,t.mh,rgb(226,223,215));
+    glass(t,.5,.15,2.4,2.05,'#b8bab8',[44,52,60]);t.R(1.68,.15,.06,2.05,'#b8bab8');
+    t.R(0,0,t.mw,.18,rgb(186,184,178));                                // slab edge
+    t.R(0,.18,t.mw,1.0,rgb(205,203,196));t.G(0,.18,t.mw,1.0,0);       // solid balcony parapet
+    t.R(0,1.12,t.mw,.06,'#9b9c99');
+    for(let x=0;x<t.mw;x+=.4)t.R(x,.18,.015,1.0,'rgba(150,150,146,.5)');
+    t.R(3.0,.2,.45,.9,rgb(170,172,170));                                // aircon unit
+    t.R(t.mw-.08,0,.08,t.mh,rgb(180,178,170));
+  });
+  T(4,t=>{ // office glass grid
+    t.R(0,0,t.mw,t.mh,'#6f7479');
+    glass(t,.08,.9,t.mw-.16,2.8,'#80868c',[48,62,78]);for(let x=.8;x<t.mw;x+=.8)t.R(x-.03,.9,.06,2.8,'#80868c');
+    t.R(0,0,t.mw,.9,'#5b6066');t.G(0,0,t.mw,.9,.35);
+  });
+  T(5,t=>{ // office tile + strip windows
+    t.R(0,0,t.mw,t.mh,rgb(186,172,150));for(let y=0;y<t.mh;y+=.12)t.R(0,y,t.mw,.012,rgb(160,148,128));for(let x=0;x<t.mw;x+=.24)t.R(x,0,.012,t.mh,rgb(165,152,132));
+    t.N(600,v=>rgb(170+v*40,158+v*36,138+v*30,.4),2);
+    glass(t,0,1.0,t.mw,1.5,'#909290',[42,50,58]);for(let x=0;x<t.mw;x+=1.07)t.R(x,1.0,.05,1.5,'#909290');
+  });
+  T(6,t=>{ // plain concrete
+    t.R(0,0,t.mw,t.mh,rgb(168,166,160));t.N(2500,v=>rgb(140+v*60,138+v*60,132+v*60,.25),3);
+    for(let k=0;k<14;k++){const x=r()*t.mw;g.fillStyle='rgba(80,78,72,.10)';g.fillRect(t.tx+x*t.sx,t.ty,(4+r()*10),TS);}
+    glass(t,1.6,1.4,.8,.8,'#8c8c88',[58,62,64]);t.R(0,t.mh-.05,t.mw,.05,'rgba(90,90,86,.6)');
+  });
+  T(7,t=>{ // castle/temple white plaster with dark posts (shikkui)
+    t.R(0,0,t.mw,t.mh,rgb(236,235,230));t.N(1200,v=>rgb(220+v*35,220+v*35,214+v*35,.35),3);
+    t.R(0,0,t.mw,.45,'#3a2c22');for(let x=0;x<t.mw;x+=.3)t.R(x,0,.02,.45,'#2a1f18');    // dark wooden skirt (shitami)
+    t.R(0,0,.16,t.mh,'#4a382a');t.R(0,2.9,t.mw,.14,'#4a382a');
+  });
+  T(8,t=>{ // kawara roof (u along eaves, v up the slope)
+    t.R(0,0,t.mw,t.mh,rgb(70,72,78));
+    for(let x=0;x<t.mw;x+=.3){const v=r()*10;t.R(x,0,.13,t.mh,rgb(96+v,99+v,106+v));t.R(x+.13,0,.03,t.mh,rgb(118,121,128));t.R(x-.03,0,.03,t.mh,rgb(48,50,55));}
+    for(let y=0;y<t.mh;y+=.3)t.R(0,y,t.mw,.035,'rgba(30,31,35,.55)');
+  });
+  T(9,t=>{ // flat roof: membrane/concrete with seams and stains
+    t.R(0,0,t.mw,t.mh,rgb(150,152,146));t.N(5000,v=>rgb(120+v*70,122+v*70,116+v*70,.22),4);
+    for(let k=0;k<30;k++){g.fillStyle=`rgba(${70+r()*40},${72+r()*40},${66+r()*30},.10)`;g.beginPath();g.arc(t.tx+r()*TS,t.ty+r()*TS,10+r()*60,0,6.283);g.fill();}
+    for(let x=0;x<t.mw;x+=2)t.R(x,0,.03,t.mh,'rgba(90,92,88,.5)');
+  });
+  T(10,t=>{ // metal roof (galvalume) ribs
+    t.R(0,0,t.mw,t.mh,rgb(118,126,132));for(let x=0;x<t.mw;x+=.25){t.R(x,0,.04,t.mh,rgb(160,166,170));t.R(x+.04,0,.02,t.mh,rgb(80,86,92));}
+    t.N(800,v=>rgb(100+v*50,108+v*50,114+v*50,.2),3);
+  });
+  T(11,t=>{ // ishigaki dry stone (Nijo-jo: warm beige-grey granite, sampled from Higashi Ote-mon photo)
+    t.R(0,0,t.mw,t.mh,'#6a6052');
+    let y=0;while(y<t.mh){const rh=.32+r()*.22;let x=-r()*.4;while(x<t.mw){const w=.4+r()*.55;const v=r();
+        const base=[168+v*34-12,156+v*30-10,136+v*26-10];g.fillStyle=rgb(...base);
+        const X=t.tx+(x+.025)*t.sx,Y=t.ty+TS-(y+rh-.02)*t.sy,Wp=(w-.05)*t.sx,Hp=(rh-.05)*t.sy;
+        g.beginPath();g.moveTo(X+r()*6,Y+r()*5);g.lineTo(X+Wp-r()*6,Y+r()*5);g.lineTo(X+Wp-r()*4,Y+Hp-r()*5);g.lineTo(X+r()*4,Y+Hp-r()*5);g.closePath();g.fill();
+        g.fillStyle='rgba(255,250,235,.10)';g.fillRect(X+3,Y+2,Wp-8,Hp*.3);g.fillStyle='rgba(40,34,26,.18)';g.fillRect(X+2,Y+Hp*.7,Wp-4,Hp*.3);
+        for(let k=0;k<25;k++){g.fillStyle=rgb(base[0]-30+r()*60,base[1]-30+r()*55,base[2]-30+r()*50,.35);g.fillRect(X+r()*Wp,Y+r()*Hp,2,2);}
+        x+=w;}
+      y+=rh;}
+  });
+  T(12,t=>{ // school: cream with large windows
+    t.R(0,0,t.mw,t.mh,rgb(222,216,200));glass(t,.25,.9,3.5,1.9,'#c7c9c6',[46,56,64]);for(let x=.25;x<3.8;x+=.875)t.R(x,.9,.05,1.9,'#c7c9c6');
+    t.R(0,0,t.mw,.9,rgb(212,206,190));t.R(0,.85,t.mw,.06,rgb(180,176,166));
+  });
+  T(13,t=>{ // temple: dark wood frame, white panels, lattice doors
+    t.R(0,0,t.mw,t.mh,'#3a2a1e');
+    t.R(.2,2.6,3.6,.8,rgb(232,228,218));
+    for(let x=.25;x<3.8;x+=.12)t.R(x,.2,.04,2.3,'#6b4c34');for(let y=.3;y<2.5;y+=.24)t.R(.2,y,3.6,.03,'#6b4c34');
+    t.R(0,0,.22,t.mh,'#2a1d14');t.R(t.mw-.22,0,.22,t.mh,'#2a1d14');t.R(0,2.5,t.mw,.12,'#2a1d14');
+  });
+  T(14,t=>{ // shop ground floor: glass front, sign band
+    t.R(0,0,t.mw,t.mh,rgb(150,146,140));
+    glass(t,.15,.1,4.2,2.5,'#8d8f8d',[52,58,62],.8);t.R(2.1,.1,.06,2.5,'#8d8f8d');
+    const sc=[[176,56,46],[46,82,140],[220,200,160],[60,110,70],[230,230,226],[200,140,60]][Math.floor(r()*6)];
+    t.R(0,2.7,t.mw,.7,rgb(...sc));t.R(0,2.65,t.mw,.06,'#555');
+    for(let k=0;k<6;k++){g.fillStyle=rgb(255,255,255,.75);g.fillRect(t.tx+(.6+k*.55)*t.sx,t.ty+TS-3.25*t.sy,.35*t.sx,.4*t.sy);}
+  });
+  for(let i=0;i<16;i++) if(draw[i]){g.save();const t=tileCtx(i);g.beginPath();g.rect(t.tx,t.ty,TS,TS);g.clip();gm.save();gm.beginPath();gm.rect(t.tx,t.ty,TS,TS);gm.clip();draw[i](t);g.restore();gm.restore();}
+  const d=g.getImageData(0,0,ATL,ATL).data, dm=gm.getImageData(0,0,ATL,ATL).data;
+  const out=new Uint8Array(ATL*ATL*4);
+  for(let i=0;i<out.length;i+=4){out[i]=d[i];out[i+1]=d[i+1];out[i+2]=d[i+2];out[i+3]=dm[i];}
+  const t=new THREE.DataTexture(out,ATL,ATL,THREE.RGBAFormat);t.flipY=false;
+  t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;t.anisotropy=8;t.needsUpdate=true;
+  return t;
+}
+const texAtlas = buildAtlas(); if(params.get('aniso')) texAtlas.anisotropy=+params.get('aniso');
+// note: DataTexture rows start at the top of the canvas (flipY=false) -> tile row 0 is v in [0,.25] with v increasing downwards in canvas space
+
+// ---------- material factory: atlas-mapped PBR (real) + toon (pastel) ----------
+const grad = new THREE.DataTexture(new Uint8Array([110,110,110,255, 175,175,175,255, 226,226,226,255, 255,255,255,255]),4,1);
+grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+const styled = [], realOnly = [], pastelOnly = [];
+function toon(color, extra={}){ return new THREE.MeshToonMaterial(Object.assign({color, gradientMap:grad}, extra)); }
+function reg(mesh, real, pastel){ mesh.userData.m=[real,pastel]; styled.push(mesh); mesh.material = real; return mesh; }
+const glsK={value:params.get('nogls')?0:1};
+const modU={value:MOD.map(m=>new THREE.Vector2(m[0],m[1]))};
+const ATLAS_V=`attribute vec3 aUvt; varying vec3 vUvt; varying vec3 vWPos;`;
+const ATLAS_F=`uniform sampler2D tAtlas; uniform vec2 uMod[16]; uniform float uPastelAtlas; uniform float uGlsK; varying vec3 vUvt; varying vec3 vWPos;
+vec4 atlasSample(out float isGlass){
+  float code=floor(vUvt.z+.5); float gi=floor((code+.5)/16.); float t=floor(code-gi*16.+.5); float gt=gi-1.;
+  if(gi>0.5 && vUvt.y<uMod[int(gt)].y) t=gt;            // ground-floor tile (shops, machiya lattice)
+  vec2 m=uMod[int(t)];
+  vec2 q=vUvt.xy/m;
+  vec2 cell=vec2(mod(t,4.),floor(t/4.));
+  vec2 f=fract(q); f.y=1.-f.y;                          // canvas rows grow downward
+  vec2 uv=(cell+ (8./512.) + f*(496./512.))/4.;
+  vec2 dx=dFdx(q)*(496./512.)/4., dy=dFdy(q)*(496./512.)/4.;
+  vec4 s=textureGrad(tAtlas,uv,dx,dy);
+  isGlass=s.a*uGlsK; return s; }`;
+function atlasMat(kind, opts={}){
+  const m = kind==='real' ? new THREE.MeshStandardMaterial(Object.assign({vertexColors:true,roughness:.88,metalness:0,envMapIntensity:1},opts)) : toon(hex('#ffffff'),Object.assign({vertexColors:true},opts));
+  m.onBeforeCompile=(sh)=>{ sh.uniforms.tAtlas={value:texAtlas}; sh.uniforms.uMod=modU; sh.uniforms.uGlsK=glsK;
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\n'+ATLAS_V).replace('#include <uv_vertex>','#include <uv_vertex>\nvUvt=aUvt;')
+      .replace('#include <project_vertex>','#include <project_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.)).xyz;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\n'+ATLAS_F)
+      .replace('#include <map_fragment>', kind==='real'
+        ? `float gls; vec4 at=atlasSample(gls); diffuseColor.rgb*=at.rgb;`
+        : `float gls; vec4 at=atlasSample(gls); float la=dot(at.rgb,vec3(.299,.587,.114)); diffuseColor.rgb*=mix(vec3(.80+.32*smoothstep(.02,.5,la)), vec3(.86,.92,1.05), gls);`)
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.16,gls);');
+  };
+  m.customProgramCacheKey=()=>'atlas-'+kind; return m;
+}
+const MAT_BLD=[atlasMat('real'), atlasMat('pastel')];
+
+// flat vertex-coloured materials for ground layers (real: subtle procedural texture in world space)
+const GROUND_F=`varying vec3 vWPos; uniform float uGT;
+float gh(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float gn(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(gh(i),gh(i+vec2(1,0)),u.x),mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),u.x),u.y);}`;
+function groundMat(kind, gtype, opts={}){
+  const m = kind==='real' ? new THREE.MeshStandardMaterial(Object.assign({vertexColors:true,roughness:.95,metalness:0},opts)) : toon(hex('#ffffff'),Object.assign({vertexColors:true},opts));
+  m.onBeforeCompile=(sh)=>{ sh.uniforms.uGT={value:gtype};
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWPos;').replace('#include <project_vertex>','#include <project_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.)).xyz;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\n'+GROUND_F).replace('#include <map_fragment>', kind==='real' ? `{
+      vec2 p=vWPos.xz; float dd=length(cameraPosition-vWPos); float fine=1.-smoothstep(60.,400.,dd);
+      float n=gn(p*.08)*.5+gn(p*.31)*.3+gn(p*1.7)*.2*fine; float n2=gn(p*6.)*fine;
+      if(uGT<.5){ diffuseColor.rgb*=.86+.26*n+.06*(n2-.5); }                                   // asphalt / paving
+      else if(uGT<1.5){ diffuseColor.rgb*=mix(vec3(.80,.86,.70),vec3(1.12,1.06,.92),n)*(.92+.16*n2); }   // grass
+      else if(uGT<2.5){ diffuseColor.rgb*=.9+.18*n+.12*(n2-.5); }                              // gravel / earth
+      else { diffuseColor.rgb*=.93+.12*n; } }` : `{ vec2 p=vWPos.xz; float n=gn(p*.05); diffuseColor.rgb*=.95+.08*n; }`);
+  };
+  m.customProgramCacheKey=()=>'ground-'+kind+gtype; return m;
+}
+
+// =====================================================================
+//  CITY FROM OPENSTREETMAP  (data: nijo.json, © OpenStreetMap contributors, ODbL)
+// =====================================================================
+await tick('지도 데이터 불러오는 중');
+const DATA = await (await fetch('nijo.json')).json();
+const Q = DATA.q;
+const dec = (a)=>{ const n=a.length>>1, o=new Array(n); for(let i=0;i<n;i++) o[i]=[a[2*i]*Q, a[2*i+1]*Q]; return o; };
+const LIN = c=>{ const k=c.clone(); return k; };
+const sRGBc=(r,g,b)=>new THREE.Color().setRGB(r,g,b,THREE.SRGBColorSpace);
+const hexc=(h)=>new THREE.Color().setStyle(h,THREE.SRGBColorSpace);
+function ringArea(r){let s=0;for(let i=0,n=r.length;i<n;i++){const a=r[i],b=r[(i+1)%n];s+=a[0]*b[1]-b[0]*a[1];}return s/2;}
+function pip(pt,ring){let c=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if(((a[1]>pt[1])!==(b[1]>pt[1]))&&(pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0]))c=!c;}return c;}
+const CASTLE_RING = dec(DATA.castle[0]);
+const HONMARU_RING = DATA.honmaru ? dec(DATA.honmaru[0]) : null;
+const HONZ = 2.0;
+const inCastle = p=>pip(p,CASTLE_RING);
+const inHonmaru = p=>HONMARU_RING && pip(p,HONMARU_RING);
+
+// ---------- generic geometry builder (non-indexed) ----------
+class GB {
+  constructor(){ this.p=[]; this.n=[]; this.t=[]; this.cr=[]; this.cp=[]; }
+  v(x,y,z,nx,ny,nz,u,w,code,cr,cp){ this.p.push(x,y,z); this.n.push(nx,ny,nz); this.t.push(u,w,code); this.cr.push(cr.r,cr.g,cr.b); this.cp.push(cp.r,cp.g,cp.b); }
+  // triangle with automatic flat normal; 'up' forces the normal to point to +y (or given direction sign)
+  tri(A,B,C,uvA,uvB,uvC,code,cr,cp,want){
+    const ux=B[0]-A[0],uy=B[1]-A[1],uz=B[2]-A[2],vx=C[0]-A[0],vy=C[1]-A[1],vz=C[2]-A[2];
+    let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l;
+    if(want && nx*want[0]+ny*want[1]+nz*want[2]<0){ [B,C]=[C,B]; [uvB,uvC]=[uvC,uvB]; nx=-nx;ny=-ny;nz=-nz; }
+    this.v(...A,nx,ny,nz,uvA[0],uvA[1],code,cr,cp); this.v(...B,nx,ny,nz,uvB[0],uvB[1],code,cr,cp); this.v(...C,nx,ny,nz,uvC[0],uvC[1],code,cr,cp);
+  }
+  quad(A,B,C,D,uA,uB,uC,uD,code,cr,cp,want){ this.tri(A,B,C,uA,uB,uC,code,cr,cp,want); this.tri(A,C,D,uA,uC,uD,code,cr,cp,want); }
+  get count(){ return this.p.length/3; }
+  geometry(){ const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(this.p,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(this.n,3));
+    g.setAttribute('aUvt',new THREE.Float32BufferAttribute(this.t,3));
+    const a=new THREE.Float32BufferAttribute(this.cr,3), b=new THREE.Float32BufferAttribute(this.cp,3); g.setAttribute('color',a); g.userData.ca=[a,b];
+    g.computeBoundingSphere(); g.computeBoundingBox(); return g; }
+}
+let TRIS=0;
+function meshFrom(gb, mats, {cast=true, recv=true, parent=scene, name}={}){
+  if(!gb.count) return null; const g=gb.geometry(); TRIS+=gb.count/3;
+  const m=new THREE.Mesh(g); m.castShadow=cast; m.receiveShadow=recv; m.userData.ca=g.userData.ca; if(name)m.name=name;
+  reg(m,mats[0],mats[1]); parent.add(m); return m; }
+// polygon (outer + holes as [x,z] rings) -> horizontal triangles at height y (function or number)
+function fillPoly(gb, rings, y, code, cr, cp, uvScale=1, down=false){
+  const c=rings[0].map(p=>new THREE.Vector2(p[0],p[1])); const holes=rings.slice(1).filter(r=>r.length>=3).map(r=>r.map(p=>new THREE.Vector2(p[0],p[1])));
+  let tris; try{ tris=THREE.ShapeUtils.triangulateShape(c,holes); }catch(e){ return; }
+  const all=c.concat(...holes); const Y=typeof y==='function'?y:()=>y; const want=down?[0,-1,0]:[0,1,0];
+  for(const [a,b,d] of tris){ const A=all[a],B=all[b],D=all[d];
+    gb.tri([A.x,Y(A.x,A.y),A.y],[B.x,Y(B.x,B.y),B.y],[D.x,Y(D.x,D.y),D.y],[A.x*uvScale,A.y*uvScale],[B.x*uvScale,B.y*uvScale],[D.x*uvScale,D.y*uvScale],code,cr,cp,want); }
+}
+function jitter(c,amt,seed){ const r=hash2(seed*1.37,seed*.71); const k=1+(r-.5)*2*amt; return c.clone().multiplyScalar(k); }
+
+// ---------- occupancy raster (2 m) so that scattered trees avoid buildings, water and roads ----------
+const OCC_N=2200, OCC_S=2, OCC_O=OCC_N*OCC_S/2;
+const OCC=new Uint8Array(OCC_N*OCC_N);
+const HGT=new Uint8Array(OCC_N*OCC_N);   // max building/wall top height (m) per 2 m cell, for drone altitude limits
+function rasterPoly(ringOrRings, val, hgt=0){
+  const rings = Array.isArray(ringOrRings[0][0]) ? ringOrRings : [ringOrRings]; const ring=rings[0];
+  let z0=Infinity,z1=-Infinity; for(const p of ring){z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);}
+  const j0=Math.max(0,Math.floor((z0+OCC_O)/OCC_S)), j1=Math.min(OCC_N-1,Math.floor((z1+OCC_O)/OCC_S));
+  for(let j=j0;j<=j1;j++){ const z=(j+.5)*OCC_S-OCC_O; const xs=[];
+    for(const rg of rings) for(let i=0,k=rg.length-1;i<rg.length;k=i++){const a=rg[i],b=rg[k]; if((a[1]>z)!==(b[1]>z)) xs.push(a[0]+(z-a[1])*(b[0]-a[0])/(b[1]-a[1]));}
+    xs.sort((a,b)=>a-b);
+    for(let q=0;q+1<xs.length;q+=2){ const i0=Math.max(0,Math.ceil((xs[q]+OCC_O)/OCC_S-.5)), i1=Math.min(OCC_N-1,Math.floor((xs[q+1]+OCC_O)/OCC_S-.5)); for(let i=i0;i<=i1;i++){ const id=j*OCC_N+i; OCC[id]|=val; if(hgt>HGT[id]) HGT[id]=Math.min(255,hgt); } } }
+}
+function rasterLine(pts, hw, val){ for(let k=0;k+1<pts.length;k++){ const a=pts[k],b=pts[k+1]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); const n=Math.ceil(L/1.5);
+  for(let s=0;s<=n;s++){ const x=a[0]+(b[0]-a[0])*s/n, z=a[1]+(b[1]-a[1])*s/n; const r=Math.ceil(hw/OCC_S);
+    const ci=Math.floor((x+OCC_O)/OCC_S), cj=Math.floor((z+OCC_O)/OCC_S); for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){const i=ci+di,j=cj+dj;if(i>=0&&j>=0&&i<OCC_N&&j<OCC_N)OCC[j*OCC_N+i]|=val;} } } }
+function rasterLineH(pts,hw,h){ for(let k=0;k+1<pts.length;k++){ const a=pts[k],b=pts[k+1]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); const n=Math.ceil(L/1.5)+1;
+  for(let s=0;s<=n;s++){ const i=Math.floor((a[0]+(b[0]-a[0])*s/n+OCC_O)/OCC_S), j=Math.floor((a[1]+(b[1]-a[1])*s/n+OCC_O)/OCC_S); if(i>=0&&j>=0&&i<OCC_N&&j<OCC_N){const id=j*OCC_N+i; HGT[id]=Math.max(HGT[id],h);} } } }
+const hgtAt=(x,z)=>{const i=Math.floor((x+OCC_O)/OCC_S),j=Math.floor((z+OCC_O)/OCC_S);return (i<0||j<0||i>=OCC_N||j>=OCC_N)?0:HGT[j*OCC_N+i];};
+const occAt=(x,z)=>{const i=Math.floor((x+OCC_O)/OCC_S),j=Math.floor((z+OCC_O)/OCC_S);return (i<0||j<0||i>=OCC_N||j>=OCC_N)?255:OCC[j*OCC_N+i];};
+
+// ---------- palettes ----------
+// real-mode colours are sRGB albedos sampled from CC photos (Higashi Ote-mon / Ninomaru / moat / GSI aerial / Horikawa street)
+const PAL = {
+  ground: sRGBc(.50,.49,.47), groundCastle: sRGBc(.62,.61,.58), gravel: sRGBc(.66,.65,.61),
+  grass: sRGBc(.33,.40,.20), wood: sRGBc(.20,.25,.13), farm: sRGBc(.42,.42,.26), pitch: sRGBc(.64,.56,.44), paved: sRGBc(.55,.54,.52),
+  asphalt: sRGBc(.30,.31,.32), asphaltMinor: sRGBc(.38,.38,.38), sidewalk: sRGBc(.60,.58,.55), path: sRGBc(.70,.69,.65), marking: sRGBc(.86,.86,.84),
+  ballast: sRGBc(.40,.37,.33), rail: sRGBc(.36,.33,.30), concrete: sRGBc(.62,.61,.58),
+};
+const PALP = {
+  ground: hexc('#f4ead9'), groundCastle: hexc('#f7efdd'), gravel: hexc('#fbf3e3'),
+  grass: hexc('#c4e6b8'), wood: hexc('#a8d8b0'), farm: hexc('#e2edb6'), pitch: hexc('#fbe2c6'), paved: hexc('#efe6ea'),
+  asphalt: hexc('#c9c3d9'), asphaltMinor: hexc('#ded8e6'), sidewalk: hexc('#f6eee6'), path: hexc('#fff6e6'), marking: hexc('#ffffff'),
+  ballast: hexc('#d9cbc8'), rail: hexc('#9d8fa8'), concrete: hexc('#e9e3ee'),
+};
+const PASTEL_WALL = {machiya:['#f6cdb4','#f3c4a8'], house:['#fff0dc','#ffd9c4','#cdeedd','#ddd3f2','#f9d0d6','#fbe8b8'], apart:['#ddd3f2','#cfe6f7','#cdeedd','#fff0dc'],
+  office:['#d6cff0','#cfe6f7','#c8ece0','#f2e2f4'], school:['#f8e7ad'], temple:['#f9d3c5'], castle:['#fffaf3'], indus:['#e6e1ee']};
+const PASTEL_ROOF = {kawara:['#a99bbf','#9fa6c8','#b79fb8'], flat:['#efe6f5','#e8f1ea','#f6ecdf'], metal:['#b8cde6','#c6b8e0']};
+const pickP=(arr,r)=>hexc(arr[Math.floor(r*arr.length)%arr.length]);
+
+// ---------- ground, landuse ----------
+await tick('지면·물길');
+const SURF_Y = {paved:.03, pitch:.035, farm:.04, gravel:.045, grass:.05, wood:.055};
+{
+  const g0=new GB(), gC=new GB();
+  for(const gp of DATA.ground){ const rings=gp.p.map(dec); const z=gp.z||0;
+    fillPoly(gp.z?gC:g0, rings, z, 0, PAL.ground, PALP.ground); }
+  const mG=meshFrom(g0,[groundMat('real',0,{}),groundMat('pastel',0)],{cast:false});
+  const mC=meshFrom(gC,[groundMat('real',2,{}),groundMat('pastel',2)],{cast:true});
+  // landuse overlays
+  const layers={};
+  for(const [cls,list] of Object.entries(DATA.surf)){
+    for(const s of list){ const rings=s.p.map(dec); const c0=rings[0][0]; const cIn=inCastle(rings[0][Math.floor(rings[0].length/2)]);
+      let cr=PAL[cls], cp=PALP[cls]; if(cls==='gravel'&&cIn){cr=PAL.groundCastle;cp=PALP.groundCastle;}
+      const hon = rings[0].every(p=>inHonmaru(p));
+      const key=(cls==='grass'||cls==='farm')?'grass':(cls==='wood'?'wood':(cls==='paved'?'paved':'gravel'));
+      const gb=(layers[key]||=new GB());
+      fillPoly(gb, rings, (hon?HONZ:0)+SURF_Y[cls], 0, jitter(cr,.06,s.a), cp);
+    }
+  }
+  const GT={grass:1,wood:1,paved:0,gravel:2};
+  let k=0; for(const [key,gb] of Object.entries(layers)){ k++;
+    const mr=groundMat('real',GT[key],{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2*k}), mp=groundMat('pastel',GT[key],{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2*k});
+    meshFrom(gb,[mr,mp],{cast:false}); }
+}
+
+// ---------- water: one planar reflector for moats + Horikawa, PBR for garden ponds ----------
+const WATER_Y = -3.2, POND_Y = -0.45;
+const waterRings = DATA.water.map(p=>p.map(dec));
+const pondRings = DATA.ponds.map(p=>p.map(dec));
+for(const w of waterRings) rasterPoly(w, 2);
+for(const w of pondRings) rasterPoly(w, 2);
+function waterShapeGeometry(list){
+  const parts=[]; for(const rings of list){ const sh=new THREE.Shape(rings[0].map(p=>new THREE.Vector2(p[0],-p[1])));
+    for(const h of rings.slice(1)) sh.holes.push(new THREE.Path(h.map(p=>new THREE.Vector2(p[0],-p[1]))));
+    const g=new THREE.ShapeGeometry(sh); g.deleteAttribute('uv'); parts.push(g); }
+  return mergeGeometries(parts);
+}
+const WATER_GEO = waterShapeGeometry(waterRings);
+const PONDS_GEO = waterShapeGeometry(pondRings);
+// banks: ishigaki for the castle moats, cut stone for Horikawa, low stone edging for ponds
+{
+  const gb=new GB();
+  const stoneR=sRGBc(1,1,1), stoneP=hexc('#e4dbe8'), horiR=sRGBc(.82,.84,.86), pondR=sRGBc(.85,.85,.82);
+  const doRing=(ring,depthTop,bottom,isPond)=>{
+    let u=0;
+    for(let i=0;i<ring.length;i++){ const a=ring[i], b=ring[(i+1)%ring.length]; const dx=b[0]-a[0], dz=b[1]-a[1]; const L=Math.hypot(dx,dz); if(L<.01) continue;
+      const nx=dz/L, nz=-dx/L;                        // normal pointing into the water (left of the edge in x/north space)
+      const mid=[(a[0]+b[0])/2-nx*3,(a[1]+b[1])/2-nz*3];  // a point on the land side
+      const castle = !isPond && inCastle(mid);
+      const top = (!isPond && inHonmaru(mid)) ? HONZ : depthTop;
+      const bat = castle ? (top-bottom)*0.22 : (isPond?0.05:0.06*(top-bottom));
+      const A=[a[0],top,a[1]], B=[b[0],top,b[1]], C=[b[0]+nx*bat,bottom,b[1]+nz*bat], D=[a[0]+nx*bat,bottom,a[1]+nz*bat];
+      const cr = isPond?pondR:(castle?jitter(stoneR,.05,i):horiR);
+      gb.quad(D,C,B,A,[u,0],[u+L,0],[u+L,top-bottom],[u,top-bottom],TILE.ISHIGAKI,cr,stoneP,[nx,0,nz]);
+      u+=L; }
+  };
+  for(const rings of waterRings) for(const r of rings) doRing(r,0,WATER_Y-0.6,false);
+  for(const rings of pondRings) for(const r of rings) doRing(r,0.02,POND_Y-0.3,true);
+  meshFrom(gb,MAT_BLD,{cast:true,name:'banks'});
+}
+
+// ---------- buildings ----------
+await tick('건물 6만 8천 동 짓는 중');
+function obb(ring){ // minimum-area oriented rectangle of a ring (rotating calipers over hull edges)
+  const pts=ring; let best=null;
+  for(let i=0;i<pts.length;i++){ const a=pts[i],b=pts[(i+1)%pts.length]; let ux=b[0]-a[0],uz=b[1]-a[1]; const L=Math.hypot(ux,uz); if(L<.3) continue; ux/=L;uz/=L;
+    let mn0=Infinity,mx0=-Infinity,mn1=Infinity,mx1=-Infinity; for(const p of pts){const s=p[0]*ux+p[1]*uz,t=-p[0]*uz+p[1]*ux; if(s<mn0)mn0=s;if(s>mx0)mx0=s;if(t<mn1)mn1=t;if(t>mx1)mx1=t;}
+    const area=(mx0-mn0)*(mx1-mn1); if(!best||area<best.area) best={area,ux,uz,mn0,mx0,mn1,mx1}; }
+  if(!best) return null;
+  let {ux,uz,mn0,mx0,mn1,mx1}=best; let a=(mx0-mn0)/2, b=(mx1-mn1)/2; const cs=(mn0+mx0)/2, ct=(mn1+mx1)/2;
+  const cx=cs*ux-ct*uz, cz=cs*uz+ct*ux; let u=[ux,uz], v=[-uz,ux];
+  if(b>a){ [a,b]=[b,a]; [u,v]=[v,[-u[0],-u[1]]]; }
+  return {c:[cx,cz],u,v,a,b,area:best.area};
+}
+const KIND_WALL = {
+  machiya: r=>TILE.MACHIYA_UP + 16*(TILE.MACHIYA+1),
+  house: r=>r<.55?TILE.HOUSE:TILE.HOUSE2,
+  apart: (r,shop)=>TILE.APART + (shop||r<.2 ? 16*(TILE.SHOP+1) : 0),
+  office: (r,shop)=>(r<.45?TILE.OFFICE_GLASS:TILE.OFFICE_TILE) + (shop||r<.55 ? 16*(TILE.SHOP+1) : 0),
+  school: r=>TILE.SCHOOL, temple: r=>TILE.TEMPLE, castle: r=>TILE.PLASTER, indus: r=>TILE.CONCRETE };
+const WALL_TINT = {
+  machiya: [[1,1,1],[.92,.9,.88],[1.05,1.03,1]], house: [[1.05,1,.93],[.95,.97,1],[.86,.79,.70],[1.12,1.12,1.10],[.72,.72,.74],[1.0,.93,.85]],
+  apart: [[1,1,1],[1.0,.95,.86],[.86,.80,.72],[.93,.95,.97]], office: [[1,1,1],[.9,.92,.95],[1.05,1.0,.92],[.74,.70,.66],[.85,.86,.88]],
+  school: [[1,1,1]], temple: [[1,1,1]], castle: [[1,1,1]], indus: [[1,1,1],[.9,.92,.95]] };
+const tintC=(t,j)=>new THREE.Color(Math.pow(t[0]*j,2.2),Math.pow(t[1]*j,2.2),Math.pow(t[2]*j,2.2)).multiplyScalar(1);
+const CASTLE_SPEC = new Map();   // filled by the castle module: building name -> custom handler
+const castleBuildings = [];
+// pitched roof (hip / gable / hip-and-gable) over an oriented rectangle, with optional curved Japanese eaves
+function pitchedRoof(gb, o, y0, rh, type, over, code, cr, cp, opt={}){
+  const {c,u,v}=o; const A=o.a+over, B=o.b+over; const seg=opt.seg||1; const lift=opt.lift||0; const drop=over*Math.tan(opt.pitch||0.5)*.6;
+  const P=(s,t,y)=>[c[0]+u[0]*s+v[0]*t, y, c[1]+u[1]*s+v[1]*t];
+  const ridge = type==='gabled' ? A : Math.max(0, A - B*(type==='irimoya'?0.62:1));
+  const ey=y0-drop;
+  // eave outline and ridge
+  const eaves=[[-A,-B],[A,-B],[A,B],[-A,B]];
+  const slopeLen=Math.hypot(B,rh);
+  const curveY=(s,t,k)=>{ // k: 0 at eave .. 1 at ridge ; corner lift for Japanese roofs
+    const cs=Math.min(1,Math.max(Math.abs(s)/A,Math.abs(t)/B)); const cor=Math.pow(Math.abs(s)/A,4)*Math.pow(Math.abs(t)/B,4);
+    return ey + rh*Math.pow(k,opt.pw||1) + lift*(1-k)*(1-k)*Math.pow(Math.min(Math.abs(s)/A,Math.abs(t)/B),3); };
+  const face=(E0,E1,R0,R1,len)=>{ // E0,E1 eave corners (s,t); R0,R1 ridge points (s,t)
+    for(let j=0;j<seg;j++)for(let i=0;i<seg;i++){
+      const pt=(ii,jj)=>{const a=ii/seg,k=jj/seg; const es=E0[0]+(E1[0]-E0[0])*a, et=E0[1]+(E1[1]-E0[1])*a, rs=R0[0]+(R1[0]-R0[0])*a, rt=R0[1]+(R1[1]-R0[1])*a;
+        const s=es+(rs-es)*k, t=et+(rt-et)*k; return {p:P(s,t,curveY(s,t,k)), uv:[ (E0[0]===E1[0]? t : s), k*slopeLen ]};};
+      const q0=pt(i,j),q1=pt(i+1,j),q2=pt(i+1,j+1),q3=pt(i,j+1);
+      gb.quad(q0.p,q1.p,q2.p,q3.p,q0.uv,q1.uv,q2.uv,q3.uv,code,cr,cp,[0,1,0]); } };
+  const ry=ey+rh;
+  face([-A,-B],[A,-B],[-ridge,0],[ridge,0]);
+  face([A,B],[-A,B],[ridge,0],[-ridge,0]);
+  if(type!=='gabled'){ face([A,-B],[A,B],[ridge,0],[ridge,0]); face([-A,B],[-A,-B],[-ridge,0],[-ridge,0]); }
+  else { // gable end walls (plaster/wall tile) at the wall line
+    const wc=opt.wallCode??code, wcr=opt.wallCr||cr, wcp=opt.wallCp||cp;
+    for(const sg of [-1,1]){ const s=sg*o.a; const yb=y0; const a1=P(s,-o.b,yb), a2=P(s,o.b,yb), a3=P(s,0,ry-.05);
+      gb.tri(a1,a2,a3,[ -o.b,yb-(opt.base||0)],[o.b,yb-(opt.base||0)],[0,yb+rh-(opt.base||0)],wc,wcr,wcp,[u[0]*sg,0,u[1]*sg]); } }
+  if(type==='irimoya'){ // small vertical gable in the upper hip ends
+    const gk=0.55; for(const sg of [-1,1]){ const s=sg*ridge; const t=B*(1-gk)*.9; const yb=ey+rh*Math.pow(gk,opt.pw||1);
+      gb.tri(P(s,-t,yb),P(s,t,yb),P(s,0,ry),[-t,0],[t,0],[0,ry-yb],opt.gableCode??code,opt.gableCr||cr,opt.gableCp||cp,[u[0]*sg,0,u[1]*sg]); } }
+  // soffit (underside) so the eaves read from street level
+  const sc=opt.soffitCr||cr.clone().multiplyScalar(.35);
+  gb.quad(P(-A,-B,ey-.05),P(A,-B,ey-.05),P(A,B,ey-.05),P(-A,B,ey-.05),[0,0],[1,0],[1,1],[0,1],opt.soffitCode??TILE.CONCRETE,sc,cp.clone().multiplyScalar(.85),[0,-1,0]);
+  // ridge cap
+  if(opt.cap){ const w=opt.cap, h=opt.cap*.9, L=ridge+ (type==='gabled'?0:w*.3);
+    if(L>0.05){ const capC=cr.clone().multiplyScalar(.7), capP=cp.clone().multiplyScalar(.85);
+      gb.quad(P(-L,-w,ry),P(L,-w,ry),P(L,0,ry+h),P(-L,0,ry+h),[0,0],[2*L,0],[2*L,1],[0,1],code,capC,capP,[v[0]*-1,1,v[1]*-1]);
+      gb.quad(P(L,w,ry),P(-L,w,ry),P(-L,0,ry+h),P(L,0,ry+h),[0,0],[2*L,0],[2*L,1],[0,1],code,capC,capP,[v[0],1,v[1]]);
+      if(opt.oni) for(const sg of [-1,1]){ const s=sg*L; gb.quad(P(s,-w*1.2,ry-.2),P(s,w*1.2,ry-.2),P(s,w*.8,ry+h+opt.oni),P(s,-w*.8,ry+h+opt.oni),[0,0],[1,0],[1,1],[0,1],code,capC,capP,[u[0]*sg,0,u[1]*sg]); } } }
+  return ry;
+}
+function wallsOf(gb, rings, y0, y1, vBase, code, cr, cp){
+  for(const ring of rings){ let u=0;
+    for(let i=0;i<ring.length;i++){ const a=ring[i], b=ring[(i+1)%ring.length]; const dx=b[0]-a[0], dz=b[1]-a[1]; const L=Math.hypot(dx,dz); if(L<.05) continue;
+      const nx=-dz/L, nz=dx/L;
+      gb.quad([a[0],y0,a[1]],[b[0],y0,b[1]],[b[0],y1,b[1]],[a[0],y1,a[1]],[u,y0-vBase],[u+L,y0-vBase],[u+L,y1-vBase],[u,y1-vBase],code,cr,cp,[nx,0,nz]);
+      u+=L; } }
+}
+function boxAt(gb, cx,cz, ux,uz, a,b, y0,y1, code, cr, cp, top=true, topCode){
+  const vx=-uz, vz=ux; const P=(s,t,y)=>[cx+ux*s+vx*t,y,cz+uz*s+vz*t];
+  const ring=[[-a,-b],[a,-b],[a,b],[-a,b]].map(([s,t])=>[cx+ux*s+vx*t, cz+uz*s+vz*t]);
+  if(ringArea(ring)>0) ring.reverse();
+  wallsOf(gb,[ring],y0,y1,y0,code,cr,cp);
+  if(top) gb.quad(P(-a,-b,y1),P(a,-b,y1),P(a,b,y1),P(-a,b,y1),[-a,-b],[a,-b],[a,b],[-a,b],topCode??code,cr,cp,[0,1,0]);
+}
+const CH=500; const chunks=new Map();
+const chunkOf=(x,z)=>{const k=Math.floor(x/CH)+','+Math.floor(z/CH); let c=chunks.get(k); if(!c){c=new GB(); chunks.set(k,c);} return c;};
+let nB=0;
+for(const b of DATA.b){
+  const rings=b.p.map(dec); const outer=rings[0]; if(outer.length<3) continue;
+  // make sure: exterior clockwise in (x,z) == CCW in (x,north)
+  if(ringArea(outer)>0) outer.reverse(); for(let i=1;i<rings.length;i++) if(ringArea(rings[i])<0) rings[i].reverse();
+  let cx=0,cz=0; for(const p of outer){cx+=p[0];cz+=p[1];} cx/=outer.length; cz/=outer.length;
+  rasterPoly(outer,1,Math.ceil((b.z||0)+(b.c?18:b.h)+2));
+  nB++;
+  if(b.c){ castleBuildings.push({b,rings,cx,cz}); continue; }   // castle buildings are built by the castle module
+  const gb=chunkOf(cx,cz);
+  const r=hash2(cx*.173,cz*.311), r2=hash2(cz*.57+3,cx*.91), r3=hash2(cx*.37+11,cz*.13+5);
+  const base=b.z||0; const kind=b.k; const H=b.h; const minh=b.m||0;
+  const area=Math.abs(ringArea(outer));
+  const code=KIND_WALL[kind](r,b.s);
+  const tints=WALL_TINT[kind]; let cr=tintC(tints[Math.floor(r2*tints.length)],.94+.12*r3);
+  if(b.bc){ try{ const c=new THREE.Color().setStyle(b.bc,THREE.SRGBColorSpace); cr=c.multiplyScalar(1.4); }catch(e){} }
+  const cp=pickP(PASTEL_WALL[kind],r2);
+  // roof decision
+  let rtype=b.r; const o=(rtype!=='flat' && area<2500)?obb(outer):null;
+  const fill=o?area/(4*o.a*o.b):0;
+  let pitched = o && fill>0.78 && (rtype==='gabled'||rtype==='hipped'||rtype==='pyramidal'||rtype==='hip'||rtype==='gambrel'||rtype==='mansard') && o.b>1.2;
+  const pitch = kind==='temple'?0.62:(kind==='machiya'?0.5:0.45);
+  let rh = pitched ? Math.min(kind==='temple'?9:3.2, o.b*Math.tan(pitch)) : 0;
+  let eave = base + H - rh*0.85; if(eave < base+minh+2.3){ eave=base+minh+2.3; }
+  const wallTop = pitched ? eave : base+H;
+  wallsOf(gb, rings, base+minh, wallTop, base, code, cr, cp);
+  if(pitched){
+    const roofKind = kind==='temple'||kind==='machiya' ? 'kawara' : (r3<.55?'kawara':(r3<.8?'slate':'metal'));
+    let rc, rcp, rcode;
+    if(roofKind==='kawara'){ rcode=TILE.KAWARA; rc=jitter(new THREE.Color(1,1,1),.07,cx); rcp=pickP(PASTEL_ROOF.kawara,r); }
+    else if(roofKind==='slate'){ rcode=TILE.KAWARA; rc=new THREE.Color(.62,.66,.74).multiplyScalar(.9+.2*r); rcp=pickP(PASTEL_ROOF.kawara,r2); }
+    else { rcode=TILE.ROOF_METAL; rc=[new THREE.Color(.8,.86,1.0),new THREE.Color(.75,.45,.32),new THREE.Color(.45,.47,.5)][Math.floor(r*3)]; rcp=pickP(PASTEL_ROOF.metal,r); }
+    if(b.rc){ try{ rc=new THREE.Color().setStyle(b.rc,THREE.SRGBColorSpace).multiplyScalar(2.2);}catch(e){} }
+    const type = kind==='temple' ? 'irimoya' : (rtype==='gabled'?'gabled':'hipped');
+    pitchedRoof(gb, o, eave, rh, type, kind==='temple'?1.6:(kind==='machiya'?0.55:0.45), rcode, rc, rcp,
+      {seg:kind==='temple'?6:1, lift:kind==='temple'?1.0:0, pw:kind==='temple'?1.5:1, pitch, cap:kind==='temple'?.45:.18, oni:kind==='temple'?.5:0, wallCode:code&15, wallCr:cr, wallCp:cp, base, gableCode:TILE.TEMPLE, gableCr:new THREE.Color(.5,.4,.32)});
+  } else {
+    const flatKind = (kind==='indus'||(kind==='house'&&r3<.15)) ? 'metal' : 'flat';
+    const rcode = flatKind==='metal'?TILE.ROOF_METAL:TILE.ROOF_FLAT;
+    const rc = flatKind==='metal'? new THREE.Color(.62,.66,.72) : jitter(new THREE.Color(.78,.80,.77),.14,cz);
+    fillPoly(gb, rings, base+H, rcode, rc, pickP(PASTEL_ROOF.flat,r));
+    // parapet lip + rooftop plant for larger flat roofs
+    if(area>140 && H>8){ const oo=o||obb(outer); if(oo){ const n=1+Math.floor(r*3);
+      for(let k=0;k<n;k++){ const s=(hash2(k+cx,cz)-.5)*oo.a, t=(hash2(cz,k+cx)-.5)*oo.b; const sx=1.2+2.5*hash2(k,cx), sz=1.2+2*hash2(cz,k);
+        boxAt(gb, oo.c[0]+oo.u[0]*s+oo.v[0]*t, oo.c[1]+oo.u[1]*s+oo.v[1]*t, oo.u[0],oo.u[1], sx,sz, base+H, base+H+1.2+2.2*hash2(k*3,cz), TILE.CONCRETE, new THREE.Color(.75,.75,.74), hexc('#f3eef5'), true, TILE.ROOF_FLAT); } } }
+  }
+}
+STATS.buildings=nB;
+for(const [k,gb] of chunks) meshFrom(gb, MAT_BLD, {name:'bld'+k});
+
+// ---------- roads, sidewalks, markings ----------
+await tick('도로·철도');
+function offsetLine(pts, d){ // polyline offset with mitre joins (x,z); d>0 = left side in x/north space
+  const out=[]; const n=pts.length;
+  for(let i=0;i<n;i++){ const p=pts[i]; let nx=0,nz=0;
+    const seg=(a,b)=>{const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz)||1;return [dz/L,-dx/L];};
+    if(i>0){const s=seg(pts[i-1],p);nx+=s[0];nz+=s[1];} if(i<n-1){const s=seg(p,pts[i+1]);nx+=s[0];nz+=s[1];}
+    let L=Math.hypot(nx,nz)||1; nx/=L; nz/=L;
+    let k=1; if(i>0&&i<n-1){const s=seg(p,pts[i+1]); const cosv=nx*s[0]+nz*s[1]; k=1/Math.max(.35,cosv);}
+    out.push([p[0]+nx*d*k, p[1]+nz*d*k]); }
+  return out;
+}
+function ribbon(gb, pts, hw, y, code, cr, cp, {caps=false, uvAlong=false, yFn=null}={}){
+  if(pts.length<2) return;
+  const L=offsetLine(pts,hw), Rr=offsetLine(pts,-hw); let s=0;
+  const Y=(i,p)=>yFn?yFn(i,p):y;
+  for(let i=0;i+1<pts.length;i++){ const sl=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);
+    const a=L[i],b=L[i+1],c=Rr[i+1],d=Rr[i];
+    const uv=uvAlong?[[s,0],[s+sl,0],[s+sl,1],[s,1]]:[[a[0],a[1]],[b[0],b[1]],[c[0],c[1]],[d[0],d[1]]];
+    gb.quad([a[0],Y(i,a),a[1]],[b[0],Y(i+1,b),b[1]],[c[0],Y(i+1,c),c[1]],[d[0],Y(i,d),d[1]],...uv,code,cr,cp,[0,1,0]); s+=sl; }
+  if(caps) for(const i of [0,pts.length-1]){ const p=pts[i]; const N=10; for(let k=0;k<N;k++){ const a0=k/N*6.2832,a1=(k+1)/N*6.2832;
+    gb.tri([p[0],Y(i,p),p[1]],[p[0]+Math.cos(a0)*hw,Y(i,p),p[1]+Math.sin(a0)*hw],[p[0]+Math.cos(a1)*hw,Y(i,p),p[1]+Math.sin(a1)*hw],[p[0],p[1]],[p[0]+Math.cos(a0)*hw,p[1]+Math.sin(a0)*hw],[p[0]+Math.cos(a1)*hw,p[1]+Math.sin(a1)*hw],code,cr,cp,[0,1,0]); } }
+}
+function dashes(gb, pts, off, w, on, offLen, y, cr, cp){
+  const line=off?offsetLine(pts,off):pts; let acc=0, drawing=true, cur=[line[0]];
+  for(let i=0;i+1<line.length;i++){ let a=line[i], b=line[i+1]; let L=Math.hypot(b[0]-a[0],b[1]-a[1]); let t0=0;
+    while(L-t0>1e-6){ const lim=drawing?on:offLen; const need=lim-acc; const step=Math.min(need,L-t0); const t1=t0+step; const p=[a[0]+(b[0]-a[0])*t1/L, a[1]+(b[1]-a[1])*t1/L];
+      if(drawing) cur.push(p); acc+=step; t0=t1;
+      if(acc>=lim-1e-6){ if(drawing){ ribbon(gb,cur,w/2,y,0,cr,cp); } drawing=!drawing; acc=0; cur=[p]; } } }
+  if(drawing&&cur.length>1) ribbon(gb,cur,w/2,y,0,cr,cp);
+}
+const ROAD_MAJOR=new Set(['trunk','primary','secondary','tertiary','trunk_link','primary_link','secondary_link','tertiary_link','motorway']);
+const ROAD_FOOT=new Set(['footway','path','steps','cycleway','bridleway','track']);
+const gbAsph=new GB(), gbSide=new GB(), gbMark=new GB(), gbPath=new GB(), gbDeck=new GB();
+const roadsMajor=[];
+for(const rd of DATA.roads){
+  const pts=dec(rd.c); const hw=rd.w/2; const t=rd.t;
+  const cIn = inCastle(pts[Math.floor(pts.length/2)]);
+  const hon = pts.every(p=>inHonmaru(p)); const by = hon?HONZ:0;
+  if(ROAD_FOOT.has(t)){ rasterLine(pts, Math.max(.9,hw)+.5, 4); ribbon(cIn?gbPath:gbSide, pts, Math.max(.9,hw), by+.07, 0, cIn?PAL.path:PAL.sidewalk, cIn?PALP.path:PALP.sidewalk, {caps:true}); continue; }
+  rasterLine(pts, hw+ (rd.s?3:0), 4);
+  const major=ROAD_MAJOR.has(t);
+  if(rd.s) ribbon(gbSide, pts, hw+(major&&rd.w>9?3.5:2.2), by+.08, 0, PAL.sidewalk, PALP.sidewalk, {caps:true});
+  ribbon(gbAsph, pts, hw, by+.12, 0, major?PAL.asphalt:PAL.asphaltMinor, major?PALP.asphalt:PALP.asphaltMinor, {caps:true});
+  if(rd.b){ // bridge deck sides + parapets
+    const L=offsetLine(pts,hw+.3), Rr=offsetLine(pts,-hw-.3);
+    for(const side of [L,Rr]) for(let i=0;i+1<side.length;i++){ const a=side[i],b=side[i+1]; const dx=b[0]-a[0],dz=b[1]-a[1],ll=Math.hypot(dx,dz)||1;
+      boxAt(gbDeck,(a[0]+b[0])/2,(a[1]+b[1])/2,dx/ll,dz/ll,ll/2,.25,by-.9,by+1.0,TILE.CONCRETE,new THREE.Color(.8,.8,.78),PALP.concrete,true); } }
+  if(major && rd.w>=7){ roadsMajor.push(rd);
+    const mk=PAL.marking, mkp=PALP.marking; const y=by+.16;
+    dashes(gbMark, pts, hw-.6, .15, 1e9, 0, y, mk, mkp); dashes(gbMark, pts, -(hw-.6), .15, 1e9, 0, y, mk, mkp);
+    if(!rd.o) dashes(gbMark, pts, 0, .2, 6, 6, y, mk, mkp);
+    const lanes=Math.max(1,Math.round((rd.w-1.2)/3.3)); for(let k=1;k<lanes;k++){ const off=-hw+.6+k*(rd.w-1.2)/lanes; if(!rd.o&&Math.abs(off)<1)continue; dashes(gbMark, pts, off, .15, 5, 7, y, mk, mkp); }
+  }
+}
+STATS.roads=DATA.roads.length;
+{
+  const mk=(gt,k)=>[groundMat('real',gt,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4*k}),groundMat('pastel',gt,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4*k})];
+  meshFrom(gbSide, mk(3,3), {cast:false,name:'sidewalk'});
+  meshFrom(gbPath, mk(2,3), {cast:false,name:'paths'});
+  meshFrom(gbAsph, mk(0,4), {cast:false,name:'asphalt'});
+  meshFrom(gbMark, mk(3,6), {cast:false,name:'markings'});
+  meshFrom(gbDeck, MAT_BLD, {name:'decks'});
+}
+// bridge decks drawn from OSM man_made=bridge areas (Horikawa bridges, Honmaru east/west bridges)
+{
+  const gb=new GB(); const gw=new GB();
+  for(const br of DATA.bridges){ const rings=br.p.map(dec); const ring=rings[0]; rasterPoly(ring,16);
+    const yF=(x,z)=>{ if(!HONMARU_RING) return .14; // slope up onto the raised Honmaru
+      let d=Infinity; for(let i=0;i<HONMARU_RING.length;i++){const a=HONMARU_RING[i];d=Math.min(d,Math.hypot(a[0]-x,a[1]-z));}
+      return br.c ? (pip([x,z],HONMARU_RING)||d<4 ? HONZ+.1 : .14) : .14; };
+    fillPoly(gb, rings, yF, 0, br.c?sRGBc(.42,.34,.27):PAL.asphaltMinor, br.c?hexc('#e8cdb8'):PALP.asphaltMinor);
+    fillPoly(gb, rings, (x,z)=>yF(x,z)-.8, 0, sRGBc(.3,.3,.3), PALP.concrete, 1, true);
+    const rr=ring.slice(); if(ringArea(rr)>0) rr.reverse();
+    for(let i=0;i<rr.length;i++){ const a=rr[i],b=rr[(i+1)%rr.length]; const ya=yF(a[0],a[1]),yb=yF(b[0],b[1]); const L=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      const nx=-(b[1]-a[1])/L, nz=(b[0]-a[0])/L;
+      gw.quad([a[0],ya-.8,a[1]],[b[0],yb-.8,b[1]],[b[0],yb+.75,b[1]],[a[0],ya+.75,a[1]],[0,0],[L,0],[L,1.55],[0,1.55],br.c?TILE.TEMPLE:TILE.CONCRETE,br.c?new THREE.Color(.6,.5,.42):new THREE.Color(.85,.85,.82),br.c?hexc('#e7b9a8'):PALP.concrete,[nx,0,nz]); } }
+  meshFrom(gb,[groundMat('real',2,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8}),groundMat('pastel',2,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8})],{name:'bridges'});
+  meshFrom(gw,MAT_BLD,{name:'bridgeRails'});
+}
+// ---------- railways (JR Sagano line viaduct, Randen tram) ----------
+{
+  const gb=new GB(), gv=new GB(); const steel=new THREE.Color(.55,.53,.5);
+  for(const rl of DATA.rails){ const pts=dec(rl.c); const elev = rl.b ? 7.5*Math.min(rl.b,2) : 0; const tram = rl.t==='tram'||(rl.t==='light_rail'&&!rl.b);
+    if(elev>0){
+      // deck, sides, parapets, piers, catenary masts
+      ribbon(gv, pts, 3.1, elev, TILE.ROOF_FLAT, new THREE.Color(.7,.7,.68), PALP.concrete, {});
+      for(const side of [offsetLine(pts,3.1), offsetLine(pts,-3.1)]) for(let i=0;i+1<side.length;i++){ const a=side[i],b=side[i+1]; const dx=b[0]-a[0],dz=b[1]-a[1],ll=Math.hypot(dx,dz)||1;
+        boxAt(gv,(a[0]+b[0])/2,(a[1]+b[1])/2,dx/ll,dz/ll,ll/2+.05,.2,elev-1.4,elev+1.1,TILE.CONCRETE,new THREE.Color(.92,.92,.9),PALP.concrete,true); }
+      let acc=0; for(let i=0;i+1<pts.length;i++){ const a=pts[i],b=pts[i+1]; const dx=b[0]-a[0],dz=b[1]-a[1],ll=Math.hypot(dx,dz)||1;
+        for(let s=(25-acc)%25; s<ll; s+=25){ const x=a[0]+dx*s/ll, z=a[1]+dz*s/ll; boxAt(gv,x,z,dx/ll,dz/ll,1.0,1.8,0,elev-1.4,TILE.CONCRETE,new THREE.Color(.85,.85,.83),PALP.concrete,false); rasterLine([[x,z],[x+.1,z]],2,4);
+          if(Math.round(s+acc)%50<25){ boxAt(gv,x+(-dz/ll)*3.6,z+(dx/ll)*3.6,dx/ll,dz/ll,.15,.15,elev,elev+6.2,TILE.CONCRETE,steel,PALP.rail,true); } }
+        acc=(acc+ll)%25; }
+    } else { rasterLine(pts,2.2,4); if(!tram) ribbon(gb, pts, 1.8, .1, 0, PAL.ballast, PALP.ballast, {}); }
+    for(const off of [.535,-.535]) { const line=offsetLine(pts,off); ribbon(gb,line,.04,elev+(tram?.15:.3),0,steel,PALP.rail,{}); }
+  }
+  meshFrom(gb,[groundMat('real',2,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-10,roughness:.6,metalness:.2}),groundMat('pastel',2,{polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-10})],{cast:false,name:'rails'});
+  meshFrom(gv,MAT_BLD,{name:'viaduct'});
+}
+
+// =====================================================================
+//  NIJO-JO (二条城) – OSM footprints + hand-tuned procedural architecture
+// =====================================================================
+await tick('니조성 짓는 중');
+const C_PLASTER=new THREE.Color(1,1,1), C_WOOD=new THREE.Color(.55,.45,.38), C_DARK=new THREE.Color(.12,.10,.09);
+const CP_PLASTER=hexc('#fffaf3'), CP_WOOD=hexc('#e9c3b0'), CP_ROOF=hexc('#a49ac4'), CP_STONE=hexc('#e6dde8'), CP_GOLD=hexc('#ffe08a');
+const KAWARA_C=new THREE.Color(.92,.93,.97);   // kawara tile albedo comes from the atlas (sampled: Higashi Ote-mon roof)
+const HIWADA_C=new THREE.Color(1.25,.82,.62);   // cypress-bark roof (Kara-mon) on the kawara tile
+const gbC=new GB(), gbGold=new GB();
+const castleNamed=[];
+function castleRoof(o,eave,rh,{type='irimoya',over=1.8,seg=8,lift=1.0,cap=.6,oni=.9,color=KAWARA_C,pastel=CP_ROOF,gable=TILE.TEMPLE,gableCr=new THREE.Color(.45,.36,.3)}={}){
+  return pitchedRoof(gbC,o,eave,rh,type,over,TILE.KAWARA,color,pastel,{seg,lift,pw:1.45,pitch:.7,cap,oni,gableCode:gable,gableCr,gableCp:CP_WOOD,wallCode:TILE.PLASTER,wallCr:C_PLASTER,wallCp:CP_PLASTER,soffitCode:TILE.TEMPLE,soffitCr:new THREE.Color(.35,.28,.22)});
+}
+function oSub(o,da,db){ return {c:o.c,u:o.u,v:o.v,a:Math.max(.3,o.a+da),b:Math.max(.3,o.b+db)}; }
+function oBox(o,y0,y1,code,cr,cp,{da=0,db=0,s0=null,s1=null,top=true,gb=gbC}={}){ // box aligned with o (optionally a sub-range along u)
+  let a=o.a+da, b=o.b+db, cs=0; if(s0!==null){ cs=(s0+s1)/2; a=(s1-s0)/2; }
+  boxAt(gb, o.c[0]+o.u[0]*cs, o.c[1]+o.u[1]*cs, o.u[0],o.u[1], a,b, y0,y1, code,cr,cp, top); }
+function oPt(o,s,t){ return [o.c[0]+o.u[0]*s+o.v[0]*t, o.c[1]+o.u[1]*s+o.v[1]*t]; }
+function postBox(x,z,r,y0,y1,cr,cp,gb=gbC){ boxAt(gb,x,z,1,0,r,r,y0,y1,TILE.TEMPLE,cr,cp,true); }
+const STYLE = {
+  palace:(b,o,base,opt)=>{ // Ninomaru / Honmaru palace halls: raised floor, plaster & wood walls, huge irimoya roof
+    const e=base+(opt.eave||5.4);
+    oBox(o,base,base+.9,TILE.ISHIGAKI,new THREE.Color(.85,.84,.82),CP_STONE,{da:.6,db:.6});
+    wallsOf(gbC,b.rings,base+.9,e,base,TILE.TEMPLE,new THREE.Color(1.05,.95,.85),CP_WOOD);
+    castleRoof(o,e,Math.min(opt.rh||9,o.b*Math.tan(.78)),{over:opt.over||2.2,lift:1.1,cap:.75,oni:1.2});
+  },
+  yaguraMon:(b,o,base,opt)=>{ // Higashi/Kita Ote-mon: ishigaki on both sides, plaster tower spanning the passage
+    const w=Math.min(3.2,o.a*.28), hs=opt.stone||4.8, top=base+hs+4.0;
+    const stoneC=new THREE.Color(1.02,1,.98);
+    oBox(o,base,base+hs,TILE.ISHIGAKI,stoneC,CP_STONE,{s0:-o.a,s1:-w,db:.4});
+    oBox(o,base,base+hs,TILE.ISHIGAKI,stoneC,CP_STONE,{s0:w,s1:o.a,db:.4});
+    // gate posts, lintel and the (open) black doors with gilt fittings
+    for(const sg of [-1,1]) for(const tg of [-1,1]){ const p=oPt(o,sg*(w-.35),tg*(o.b-.6)); postBox(p[0],p[1],.38,base,base+hs,C_DARK,hexc('#7d6a7a')); }
+    oBox(o,base+hs-.9,base+hs,TILE.TEMPLE,C_DARK,hexc('#7d6a7a'),{s0:-w,s1:w,db:-.3});
+    for(const sg of [-1,1]){ const p=oPt(o,sg*(w-.55),o.b*.15); boxAt(gbC,p[0],p[1],o.v[0],o.v[1],1.5,.12,base,base+hs-1.0,TILE.TEMPLE,C_DARK,hexc('#6f5f73'));
+      const g=oPt(o,sg*(w-.4),-o.b+.5); boxAt(gbGold,g[0],g[1],o.u[0],o.u[1],.5,.05,base+hs-2.0,base+hs-1.3,0,new THREE.Color(1,1,1),CP_GOLD); }
+    // tower body
+    oBox(o,base+hs,top,TILE.PLASTER,C_PLASTER,CP_PLASTER,{da:.0,db:.0});
+    oBox(o,base+hs-.25,base+hs+.05,TILE.TEMPLE,C_DARK,CP_WOOD,{da:.3,db:.3});
+    // lattice window band (front & back)
+    for(const tg of [-1,1]){ const p=oPt(o,0,tg*(o.b+.06)); boxAt(gbC,p[0],p[1],o.u[0],o.u[1],o.a*.55,.08,base+hs+1.4,base+hs+2.7,TILE.MACHIYA,new THREE.Color(.35,.32,.30),hexc('#8f8098'),false); }
+    castleRoof(o,top,Math.min(4.2,o.b*Math.tan(.8)),{over:1.5,lift:.7,cap:.55,oni:1.0});
+    // keep the gate passage walkable in 걷기 mode
+    for(let s=-(w-.6);s<=w-.6;s+=1) for(let t=-o.b-3;t<=o.b+3;t+=1){ const p=oPt(o,s,t); const i=Math.floor((p[0]+OCC_O)/OCC_S), j=Math.floor((p[1]+OCC_O)/OCC_S); if(i>=0&&j>=0&&i<OCC_N&&j<OCC_N) OCC[j*OCC_N+i]&=~1; }
+  },
+  sumiYagura:(b,o,base,opt)=>{ // corner turret: two storeys with a pent roof between
+    const e1=base+5.2; oBox(o,base,e1,TILE.PLASTER,C_PLASTER,CP_PLASTER);
+    pitchedRoof(gbC,o,e1,1.4,'hipped',1.3,TILE.KAWARA,KAWARA_C,CP_ROOF,{seg:4,lift:.5,pw:1.2,pitch:.6,cap:0});
+    const o2=oSub(o,-o.a*.32,-o.b*.32); const e2=e1+3.4;
+    oBox(o2,e1,e2,TILE.PLASTER,C_PLASTER,CP_PLASTER);
+    castleRoof(o2,e2,Math.min(3.4,o2.b*Math.tan(.85)+.6),{over:1.4,lift:.7,cap:.5,oni:.9});
+  },
+  karaMon:(b,o,base,opt)=>{ // Kara-mon: black lacquer posts, gilt fittings, cypress-bark karahafu roof
+    for(const sg of [-1,.0001,1]) for(const tg of [-1,1]){ if(Math.abs(sg)<.01) continue; const p=oPt(o,sg*(o.a-.4),tg*(o.b-.35)); postBox(p[0],p[1],.3,base,base+4.6,C_DARK,hexc('#7a6a80')); }
+    oBox(o,base+4.0,base+4.9,TILE.TEMPLE,C_DARK,hexc('#7a6a80'),{da:-.2,db:-.15});
+    for(const tg of [-1,1]){ const p=oPt(o,0,tg*(o.b-.1)); boxAt(gbGold,p[0],p[1],o.u[0],o.u[1],o.a*.75,.06,base+4.95,base+5.9,0,new THREE.Color(1,1,1),CP_GOLD); }
+    oBox(o,base+4.9,base+6.0,TILE.TEMPLE,new THREE.Color(.25,.18,.14),CP_WOOD,{da:-.3,db:-.3});
+    castleRoof(o,base+6.0,Math.min(3.6,o.b*1.1+1),{type:'irimoya',over:1.6,lift:1.4,cap:.35,oni:.6,color:HIWADA_C,pastel:hexc('#d8a7b4')});
+  },
+  smallGate:(b,o,base,opt)=>{
+    for(const sg of [-1,1]) for(const tg of [-1,1]){ const p=oPt(o,sg*(o.a-.35),tg*(o.b-.3)); postBox(p[0],p[1],.25,base,base+3.8,new THREE.Color(.3,.24,.2),CP_WOOD); }
+    oBox(o,base+3.4,base+4.1,TILE.TEMPLE,new THREE.Color(.3,.24,.2),CP_WOOD,{da:-.1,db:-.1});
+    castleRoof(o,base+4.1,Math.min(2.2,o.b*.9+.4),{type:'gabled',over:.9,seg:4,lift:.3,cap:.35,oni:.5});
+  },
+  dozo:(b,o,base,opt)=>{ // white storehouse
+    wallsOf(gbC,b.rings,base,base+6.2,base,TILE.PLASTER,C_PLASTER,CP_PLASTER);
+    castleRoof(o,base+6.2,Math.min(3.2,o.b*Math.tan(.6)),{type:'gabled',over:.6,seg:2,lift:0,cap:.4,oni:.6});
+  },
+  plain:(b,o,base,opt)=>{
+    const e=base+(opt.eave||3.8);
+    wallsOf(gbC,b.rings,base,e,base,opt.wall??TILE.PLASTER,opt.wallC||C_PLASTER,CP_PLASTER);
+    if(o) castleRoof(o,e,Math.min(opt.rh||3.6,o.b*Math.tan(.62)),{type:opt.type||'irimoya',over:opt.over||1.0,seg:4,lift:.4,cap:.35,oni:.5});
+    else fillPoly(gbC,b.rings,e,TILE.ROOF_FLAT,new THREE.Color(.8,.8,.8),CP_ROOF);
+  },
+};
+const NAMED_STYLE = {
+  '遠侍':['palace',{eave:5.8,rh:10}], '式台':['palace',{eave:5.6,rh:8}], '大広間':['palace',{eave:6.2,rh:11}], '蘇鉄の間':['palace',{eave:5.2,rh:6}],
+  '黒書院':['palace',{eave:5.8,rh:9}], '白書院':['palace',{eave:5.4,rh:8}], '台所':['palace',{eave:6.0,rh:8}], '御清所':['palace',{eave:5.6,rh:7}],
+  '書院':['palace',{eave:5.0,rh:7}], '御常御殿':['palace',{eave:5.0,rh:7.5}], '雁の間':['palace',{eave:4.6,rh:5}], '玄関':['palace',{eave:5.0,rh:6}],
+  '東大手門':['yaguraMon',{stone:5.0}], '北大手門':['yaguraMon',{stone:4.8}], '櫓門':['yaguraMon',{stone:4.0}],
+  '東南隅櫓':['sumiYagura',{}], '西南隅櫓':['sumiYagura',{}], '唐門':['karaMon',{}],
+  '桃山門':['smallGate',{}], '南中仕切門':['smallGate',{}], '北中仕切門':['smallGate',{}], '鳴子門':['smallGate',{}], '西門':['smallGate',{}], '南門':['smallGate',{}],
+  '米倉':['dozo',{}], '土蔵':['dozo',{}], '番所':['plain',{eave:3.6,rh:3.2,wall:TILE.TEMPLE,wallC:new THREE.Color(1.05,.95,.85)}],
+  '香雲亭':['plain',{eave:3.0,rh:2.6,wall:TILE.TEMPLE,wallC:new THREE.Color(1,.92,.82)}], '和楽庵':['plain',{eave:3.0,rh:2.6,wall:TILE.TEMPLE,wallC:new THREE.Color(1,.92,.82)}],
+};
+for(const cb of castleBuildings){
+  const {b,rings,cx,cz}=cb; const base=b.z||0; const outer=rings[0];
+  const area=Math.abs(ringArea(outer)); const o=obb(outer); const fill=o?area/(4*o.a*o.b):0;
+  let [st,opt]=NAMED_STYLE[b.n]||['plain',{}];
+  if(b.n==='玄関' && cx>100) { st='karaMon'; }                      // Ninomaru carriage porch (Kuruma-yose): karahafu front
+  if(st==='plain' && b.k!=='castle') opt={eave:Math.min(8,b.h)};
+  castleNamed.push({n:b.n,x:cx,z:cz,st,fill:+fill.toFixed(2)});
+  // L/T-shaped halls: split along the OBB into two roofs when the fill ratio is low
+  if(st==='palace' && o && fill<0.8){
+    STYLE.palace(cb,o,base,Object.assign({},opt,{rh:Math.min(opt.rh||9,o.b*.9)}));
+  } else STYLE[st](cb,o||{c:[cx,cz],u:[1,0],v:[0,1],a:3,b:3},base,opt);
+}
+// tenshu-dai (donjon base) in the SW corner of the Honmaru: battered ishigaki block
+if(DATA.tenshu){
+  const ring=dec(DATA.tenshu[0]); if(ringArea(ring)>0) ring.reverse(); let cx=0,cz=0; for(const p of ring){cx+=p[0];cz+=p[1];} cx/=ring.length; cz/=ring.length;
+  const y0=HONZ, y1=HONZ+6.5; const sh=0.86; const top=ring.map(p=>[cx+(p[0]-cx)*sh, cz+(p[1]-cz)*sh]);
+  for(let i=0;i<ring.length;i++){ const a=ring[i],b=ring[(i+1)%ring.length],c=top[(i+1)%ring.length],d=top[i]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); const nx=-(b[1]-a[1])/L,nz=(b[0]-a[0])/L;
+    gbC.quad([a[0],y0-.2,a[1]],[b[0],y0-.2,b[1]],[c[0],y1,c[1]],[d[0],y1,d[1]],[0,0],[L,0],[L,6.7],[0,6.7],TILE.ISHIGAKI,new THREE.Color(1,1,1),CP_STONE,[nx,.3,nz]); }
+  fillPoly(gbC,[top],y1,TILE.ROOF_FLAT,new THREE.Color(.95,.88,.78),hexc('#f7ecd8'));
+  rasterPoly(ring,1,10);
+}
+// castle walls (dobei: white plaster on a stone footing with a tiled coping), retaining ishigaki, ordinary city walls
+{
+  const gbW=new GB();
+  for(const w of DATA.walls){ const pts=dec(w.c); const hon=pts.every(p=>inHonmaru(p)); const base=hon?HONZ:0;
+    for(let i=0;i+1<pts.length;i++){ const a=pts[i],b=pts[i+1]; const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz); if(L<.2) continue; const ux=dx/L,uz=dz/L; const mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2;
+      if(w.c1 && w.t==='retaining_wall'){ const h=w.h||2.5; boxAt(gbC,mx,mz,ux,uz,L/2+.4,1.0,base-.2,base+h,TILE.ISHIGAKI,new THREE.Color(1,1,1),CP_STONE,true); }
+      else if(w.c1){ const h=w.h||2.8; 
+        boxAt(gbC,mx,mz,ux,uz,L/2+.25,.5,base,base+.6,TILE.ISHIGAKI,new THREE.Color(1,1,1),CP_STONE,false);
+        boxAt(gbC,mx,mz,ux,uz,L/2+.2,.42,base+.6,base+h,TILE.PLASTER,C_PLASTER,CP_PLASTER,false);
+        pitchedRoof(gbC,{c:[mx,mz],u:[ux,uz],v:[-uz,ux],a:L/2+.2,b:.42},base+h,.45,'gabled',.45,TILE.KAWARA,KAWARA_C,CP_ROOF,{seg:1,cap:.12,wallCode:TILE.PLASTER,wallCr:C_PLASTER,wallCp:CP_PLASTER}); }
+      else { boxAt(gbW,mx,mz,ux,uz,L/2+.08,.1,0,w.h||1.6,TILE.CONCRETE,new THREE.Color(.95,.94,.9),PALP.concrete,true); }
+      rasterLine([a,b],w.c1?1.2:.6,1); if(w.c1) rasterLineH([a,b],1.2,Math.ceil(base+(w.h||3)+1));
+    } }
+  meshFrom(gbW,MAT_BLD,{name:'walls'});
+}
+meshFrom(gbC,MAT_BLD,{name:'castle'});
+const MAT_GOLD=[new THREE.MeshPhysicalMaterial({color:hex('#ffba30'),metalness:.9,roughness:.32,vertexColors:true,envMapIntensity:2.5}), toon(hex('#ffffff'),{vertexColors:true,emissive:hex('#3a2a06')})];
+meshFrom(gbGold,MAT_GOLD,{name:'gold'});
+console.log('castle buildings', castleNamed.length, JSON.stringify(castleNamed.filter(c=>c.n)));
+
+// =====================================================================
+//  TREES: OSM natural=tree / tree_row + scattered in woods, parks, gardens, temple grounds, street trees
+// =====================================================================
+await tick('나무 심는 중');
+function crownGeo(kind, detail){
+  const parts=[]; const r=mulberry32(kind==='pine'?11:7);
+  if(kind==='pine'){ // Japanese black pine: layered flat pads on a leaning trunk
+    const pads=detail?[[0,.92,0,.34],[.22,.74,.08,.36],[-.2,.62,-.1,.33],[.06,.5,.24,.28],[-.08,.8,-.22,.27]]:[[0,.85,0,.42],[.1,.62,.05,.4]];
+    for(const [x,y,z,s] of pads){ const g=new THREE.IcosahedronGeometry(1,detail?1:0); g.scale(s,s*.38,s); g.translate(x,y,z); parts.push(ni(g)); }
+  } else {
+    const n=detail?10:3;
+    for(let i=0;i<n;i++){ const rad=detail?.17+.07*r():.3; const g=new THREE.IcosahedronGeometry(rad,detail?1:0); const p=g.attributes.position;
+      for(let k=0;k<p.count;k++){ const v=new V3().fromBufferAttribute(p,k); v.multiplyScalar(.8+.4*hash2(v.x*17+i,v.z*17+v.y*5)); p.setXYZ(k,v.x,v.y,v.z); }
+      // blobs distributed on an ellipsoidal shell -> irregular, airy silhouette
+      const a=r()*6.283, el=(r()-.35)*1.6; const sh=detail?.3:.18;
+      g.translate(Math.cos(a)*Math.cos(el)*sh*(.6+.5*r()), .62+Math.sin(el)*.2, Math.sin(a)*Math.cos(el)*sh*(.6+.5*r()));
+      parts.push(ni(g)); }
+  }
+  const g=mergeGeometries(parts); for(const n of Object.keys(g.attributes)) if(!['position','normal'].includes(n)) g.deleteAttribute(n);
+  // radial normals from the crown centre -> soft, volumetric shading
+  const p=g.attributes.position, nn=g.attributes.normal; const cy=kind==='pine'?.72:.62;
+  for(let k=0;k<p.count;k++){ const x=p.getX(k),y=p.getY(k)-cy,z=p.getZ(k); const fx=nn.getX(k),fy=nn.getY(k),fz=nn.getZ(k); let l=Math.hypot(x,y,z)||1;
+    const mx=x/l*.65+fx*.35,my=y/l*.65+fy*.35,mz=z/l*.65+fz*.35; l=Math.hypot(mx,my,mz)||1; nn.setXYZ(k,mx/l,my/l,mz/l); }
+  // trunk
+  const t=new THREE.CylinderGeometry(.022,.04,kind==='pine'?.8:.62,detail?6:3); t.translate(kind==='pine'?.04:0,(kind==='pine'?.4:.31),0); if(kind==='pine') t.rotateZ(-.12);
+  const tt=ni(t); tt.deleteAttribute('uv');
+  const cc=new Float32Array(g.attributes.position.count).fill(1), ct=new Float32Array(tt.attributes.position.count).fill(0);
+  g.setAttribute('aLeaf',new THREE.BufferAttribute(cc,1)); tt.setAttribute('aLeaf',new THREE.BufferAttribute(ct,1));
+  return mergeGeometries([g,tt]);
+}
+const TGEO={broad:[crownGeo('broad',0),crownGeo('broad',1)], pine:[crownGeo('pine',0),crownGeo('pine',1)]};
+function treeMat(kind){
+  const m = kind==='real' ? new THREE.MeshStandardMaterial({color:0xffffff,roughness:.92,metalness:0}) : toon(hex('#ffffff'));
+  m.onBeforeCompile=(sh)=>{
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aLeaf; varying float vLeaf; varying vec3 vTP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvLeaf=aLeaf; vTP=position*vec3(9.);');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying float vLeaf; varying vec3 vTP;\nfloat th(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}\nfloat tn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(th(i),th(i+vec3(1,0,0)),f.x),mix(th(i+vec3(0,1,0)),th(i+vec3(1,1,0)),f.x),f.y),mix(mix(th(i+vec3(0,0,1)),th(i+vec3(1,0,1)),f.x),mix(th(i+vec3(0,1,1)),th(i+vec3(1,1,1)),f.x),f.y),f.z);}')
+      .replace('#include <color_fragment>', kind==='real'
+        ? `#include <color_fragment>\n float lf=tn(vTP*1.3)*.5+tn(vTP*3.1)*.3+tn(vTP*7.)*.2; float yy=vTP.y/9.; if(vLeaf>.5){ diffuseColor.rgb*=(.42+.95*lf*lf)*mix(.55,1.08,smoothstep(.25,.95,yy)); } else { diffuseColor.rgb=vec3(.07,.055,.045); }`
+        : `#include <color_fragment>\n if(vLeaf<.5) diffuseColor.rgb=vec3(.72,.58,.56);`);
+  };
+  m.customProgramCacheKey=()=>'tree-'+kind; return m;
+}
+const MAT_TREE=[treeMat('real'),treeMat('pastel')];
+const TREES=[];  // {x,z,h,w,kind,colR,colP}
+const TCOL={ // sRGB albedos, mid-November Kyoto: mostly evergreen + early autumn colour
+  green:[[.20,.27,.12],[.17,.24,.11],[.24,.30,.14],[.15,.21,.10],[.22,.28,.16]], pine:[[.14,.21,.10],[.17,.24,.12],[.12,.18,.09]],
+  yellow:[[.50,.45,.17],[.44,.42,.17],[.40,.40,.16]], red:[[.50,.17,.09],[.56,.26,.10],[.44,.14,.10]], orange:[[.52,.34,.14],[.46,.32,.14]]};
+const TCOLP={green:['#b6e2b4','#c6ebc0','#a8dcc0','#cfeec6'], pine:['#9fd4b6','#acdcbe'], yellow:['#fbe7a6','#f8dd96'], red:['#f6b9b4','#f9c4c0'], orange:['#fbd0a8']};
+function addTree(x,z,h,kind,palette,base=0){
+  const o=occAt(x,z); if(o&(1|2)) return false; if(o&4 && palette!=='street') return false;
+  const r=hash2(x*.71+3,z*.37); const pal = palette==='street' ? (r<.22?'yellow':'green') : palette;
+  let col; if(kind==='pine') col=TCOL.pine[Math.floor(r*3)]; else if(pal==='auto'){ const q=hash2(z*.3,x*.9); col = q<.1?TCOL.red[Math.floor(r*3)] : q<.18?TCOL.orange[Math.floor(r*2)] : q<.26?TCOL.yellow[Math.floor(r*3)] : TCOL.green[Math.floor(r*5)]; }
+  else col=TCOL[pal][Math.floor(r*TCOL[pal].length)];
+  const cR=sRGBc(...col); const pk=kind==='pine'?'pine':(col===TCOL.red[0]||col===TCOL.red[1]||col===TCOL.red[2]?'red':(TCOL.yellow.includes(col)?'yellow':(TCOL.orange.includes(col)?'orange':'green')));
+  const cP=pickP(TCOLP[pk],r);
+  TREES.push({x,z,y:base,h,w:h*(kind==='pine'?1.15:(.75+.3*r)),kind,cR,cP,rot:r*6.283}); OCC[Math.floor((z+OCC_O)/OCC_S)*OCC_N+Math.floor((x+OCC_O)/OCC_S)]|=8; return true;
+}
+// 1) mapped trees
+for(const t of DATA.trees){ const x=t[0]*Q,z=t[1]*Q; addTree(x,z,t[2]||R(7,11),t[3]?'pine':(inCastle([x,z])&&rand()<.4?'pine':'broad'),'auto',inHonmaru([x,z])?HONZ:0); }
+for(const row of DATA.rows){ const pts=dec(row); for(let i=0;i+1<pts.length;i++){ const a=pts[i],b=pts[i+1]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); for(let s=0;s<L;s+=8){ addTree(a[0]+(b[0]-a[0])*s/L,a[1]+(b[1]-a[1])*s/L,R(8,12),'broad','street'); } } }
+// 2) scatter inside polygons
+function scatter(rings, spacing, prob, fn){
+  const outer=rings[0]; let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity; for(const p of outer){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);}
+  for(let z=z0;z<z1;z+=spacing) for(let x=x0;x<x1;x+=spacing){ const jx=x+(hash2(x,z)-.5)*spacing*.9, jz=z+(hash2(z+.3,x)-.5)*spacing*.9;
+    if(hash2(jx*.13,jz*.29)>prob) continue; if(!pip([jx,jz],outer)) continue; let hole=false; for(let k=1;k<rings.length;k++) if(pip([jx,jz],rings[k])){hole=true;break;} if(hole) continue; fn(jx,jz); } }
+for(const s of DATA.surf.wood){ const rings=s.p.map(dec); const c=inCastle(rings[0][0]); scatter(rings, c?6.5:7, .85, (x,z)=>addTree(x,z,R(9,15),c&&rand()<.35?'pine':'broad','auto',inHonmaru([x,z])?HONZ:0)); }
+for(const s of DATA.surf.grass){ const rings=s.p.map(dec); const c=inCastle(rings[0][0]); scatter(rings, c?11:15, c?.55:.4, (x,z)=>addTree(x,z,c?R(5,9):R(7,12),c&&rand()<.55?'pine':'broad','auto',inHonmaru([x,z])?HONZ:0)); }
+for(const s of DATA.surf.gravel){ const rings=s.p.map(dec); const c=inCastle(rings[0][0]); if(c) continue; scatter(rings, 13, .35, (x,z)=>addTree(x,z,R(7,13),rand()<.3?'pine':'broad','auto')); }
+// castle grounds: rows of pines and broadleaf trees along the inner edges of the outer moat (as in the GSI aerial photo)
+{ const ring=CASTLE_RING; for(let i=0;i<ring.length;i++){ const a=ring[i],b=ring[(i+1)%ring.length]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); const dx=(b[0]-a[0])/L,dz=(b[1]-a[1])/L;
+  for(let s=0;s<L;s+=7){ for(const off of [14,20,27]){ for(const sg of [1,-1]){ const x=a[0]+dx*s-dz*off*sg, z=a[1]+dz*s+dx*off*sg; if(!inCastle([x,z])) continue; if(hash2(x,z)<.72) addTree(x,z,R(8,14),hash2(z,x)<.3?'pine':'broad','auto'); } } } } }
+// castle grounds woodland: fill free ground (not buildings, paths, water, plazas near the palaces)
+let castleSkip=0, castleT0=TREES.length;
+{ let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity; for(const p of CASTLE_RING){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);}
+  const PAL_C=[[150,75],[-30,5]]; // Ninomaru and Honmaru palace courtyards stay open (gravel / lawn)
+  for(let z=z0;z<z1;z+=6.5) for(let x=x0;x<x1;x+=6.5){ const jx=x+(hash2(x,z)-.5)*5, jz=z+(hash2(z,x)-.5)*5;
+    if(!inCastle([jx,jz])) continue; const n=fbm(jx*.012+4,jz*.012,3);
+    let open=false; for(const [px,pz] of PAL_C) if(Math.hypot(jx-px,jz-pz)<(px>0?95:48)) open=true; if(open && n<.75) continue;
+    if(n<.36) continue; if(hash2(jx*.3,jz*.7)>.85) continue;
+    let near=false; if(occAt(jx,jz)&(1|2|4)) near=true; for(let dz=-3;dz<=3;dz+=3) for(let dx=-3;dx<=3;dx+=3) if(occAt(jx+dx,jz+dz)&(1|2)) near=true; if(near) {castleSkip++; continue;}
+    addTree(jx,jz,R(8,15),hash2(jz,jx)<.33?'pine':'broad','auto',inHonmaru([jx,jz])?HONZ:0); } }
+console.log('castle fill trees', TREES.length-castleT0, 'skipped', castleSkip);
+// 3) street trees on the main avenues (Horikawa-dori, Oike-dori, Gojo-dori... are lined with ginkgo / zelkova)
+for(const rd of roadsMajor){ if(!rd.s||rd.w<9) continue; const pts=dec(rd.c);
+  for(const off of [rd.w/2+1.6, -(rd.w/2+1.6)]){ const line=offsetLine(pts,off); for(let i=0;i+1<line.length;i++){ const a=line[i],b=line[i+1]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); for(let s=4;s<L-4;s+=11){ addTree(a[0]+(b[0]-a[0])*s/L,a[1]+(b[1]-a[1])*s/L,R(8,12),'broad','street'); } } } }
+STATS.trees=TREES.length;
+// instanced, chunked, with a near/far geometry swap (LOD)
+const TREE_CHUNKS=[];
+{
+  const groups=new Map(); for(const t of TREES){ const k=t.kind+'|'+Math.floor(t.x/400)+','+Math.floor(t.z/400); (groups.get(k)||groups.set(k,[]).get(k)).push(t); }
+  const M4=new THREE.Matrix4(), Qt=new THREE.Quaternion(), S=new V3(), P=new V3(), Y=new V3(0,1,0);
+  for(const [k,list] of groups){ const kind=k.split('|')[0];
+    const im=new THREE.InstancedMesh(TGEO[kind][1], MAT_TREE[0], list.length);
+    const icR=new THREE.InstancedBufferAttribute(new Float32Array(list.length*3),3), icP=new THREE.InstancedBufferAttribute(new Float32Array(list.length*3),3);
+    let cx=0,cz=0;
+    list.forEach((t,i)=>{ Qt.setFromAxisAngle(Y,t.rot); S.set(t.w,t.h,t.w); P.set(t.x,t.y,t.z); M4.compose(P,Qt,S); im.setMatrixAt(i,M4); icR.setXYZ(i,t.cR.r,t.cR.g,t.cR.b); icP.setXYZ(i,t.cP.r,t.cP.g,t.cP.b); cx+=t.x; cz+=t.z; });
+    im.instanceColor=icR; im.userData.ic=[icR,icP]; im.castShadow=true; im.receiveShadow=true; im.computeBoundingSphere();
+    reg(im, MAT_TREE[0], MAT_TREE[1]); scene.add(im);
+    TREE_CHUNKS.push({im, kind, c:new V3(cx/list.length,0,cz/list.length), lod:1});
+    TRIS+=list.length*TGEO[kind][0].attributes.position.count/3;
+  }
+}
+function updateTreeLOD(cam){ for(const tc of TREE_CHUNKS){ const d=cam.position.distanceTo(tc.c); const want=d<(MOBILE?300:480)?1:0; if(want!==tc.lod){ tc.lod=want; tc.im.geometry=TGEO[tc.kind][want]; } } }
+
+// ---------- distant mountains ringing the Kyoto basin (Higashiyama E, Kitayama N, Nishiyama/Arashiyama W; open to the south) ----------
+{
+  const N=256, gb=new GB(); const rowsR=[], rowsP=[];
+  const prof=(az)=>{ // az: 0 = east, pi/2 = north (in x/north space)
+    const e=Math.cos(az), n=Math.sin(az);
+    let h=0, d=0;
+    const east=Math.max(0,e), north=Math.max(0,n), west=Math.max(0,-e), south=Math.max(0,-n);
+    h = 260*Math.pow(east,1.5)*(1-.5*south) + 520*Math.pow(north,1.2) + 560*Math.pow(west,1.3)*(1-.6*south) ;
+    h *= (.6+.55*fbm(az*6.0,1.7,5)); h = h*(1-.85*Math.pow(south,1.4)) + 20;
+    d = 4700*east + 7200*north + 7600*west + 9500*south; d = d/(east+north+west+south);
+    return {h,d}; };
+  const M=48; const layers=[0,.35,.7,1];
+  for(let i=0;i<N;i++){ const a0=i/N*6.2832, a1=(i+1)/N*6.2832; const p0=prof(a0), p1=prof(a1);
+    for(let l=0;l+1<layers.length;l++){ const f0=layers[l], f1=layers[l+1];
+      const pt=(a,p,f)=>{ const dd=p.d*(1.25-.25*f) + 1500*(1-f); return [Math.cos(a)*dd, p.h*Math.sin(f*Math.PI/2)*(f<1?1:1)*(.95+.1*Math.sin(a*37)), -Math.sin(a)*dd]; };
+      const A=pt(a0,p0,f0),B=pt(a1,p1,f0),C=pt(a1,p1,f1),D=pt(a0,p0,f1);
+      const cr=sRGBc(.14,.19,.13).lerp(sRGBc(.20,.24,.17),f1), cp=hexc('#c9dcc6').lerp(hexc('#d9d0ec'),f1*.6);
+      gb.quad(A,B,C,D,[0,0],[1,0],[1,1],[0,1],0,cr,cp,[-(A[0]+B[0]),300,-(A[2]+B[2])]); } }
+  const mtn=meshFrom(gb,[groundMat('real',1,{}),groundMat('pastel',1)],{cast:false,recv:false,name:'mountains'});
+  // outer city carpet (beyond the 2 km data radius): a hazy low ring so the horizon is not empty
+  const gr=new GB(); const R0=2060, R1=4800; for(let i=0;i<128;i++){ const a0=i/128*6.2832,a1=(i+1)/128*6.2832;
+    gr.quad([Math.cos(a0)*R0,-.05,Math.sin(a0)*R0],[Math.cos(a1)*R0,-.05,Math.sin(a1)*R0],[Math.cos(a1)*R1,-.05,Math.sin(a1)*R1],[Math.cos(a0)*R1,-.05,Math.sin(a0)*R1],[0,0],[1,0],[1,1],[0,1],0,sRGBc(.47,.46,.44),hexc('#efe5dc'),[0,1,0]); }
+  meshFrom(gr,[groundMat('real',0,{}),groundMat('pastel',0)],{cast:false,name:'outer'});
+}
+// ---------- beyond the 2 km data radius: low-detail filler blocks on Kyoto's N-S street grid (approximation, fades into haze) ----------
+{
+  const N=MOBILE?12000:26000; const g=new THREE.BoxGeometry(1,1,1); g.translate(0,.5,0); const gg=ni(g); gg.deleteAttribute('uv');
+  const im=new THREE.InstancedMesh(gg,null,N); const icR=new THREE.InstancedBufferAttribute(new Float32Array(N*3),3), icP=new THREE.InstancedBufferAttribute(new Float32Array(N*3),3);
+  const M4=new THREE.Matrix4(); let n=0, tries=0; const rr=mulberry32(99);
+  while(n<N && tries<N*6){ tries++; const a=rr()*6.2832, d=Math.sqrt(2080*2080+rr()*(4700*4700-2080*2080)); const x=Math.cos(a)*d, z=Math.sin(a)*d;
+    if(((x%121)+121)%121<11 || ((z%118)+118)%118<9) continue;           // keep the street grid open
+    if(x>2050 && x<2150) continue;                                      // Kamo river corridor (east)
+    const sx=7+rr()*16, sz=7+rr()*18; const hh=(rr()<.12? 18+rr()*16 : 5+rr()*8)*(1-.35*smooth(2500,4700,d));
+    M4.makeScale(sx,hh,sz).setPosition(x,0,z); im.setMatrixAt(n,M4);
+    const v=.52+.3*rr(); const c=sRGBc(v,v*.985,v*.95); icR.setXYZ(n,c.r,c.g,c.b); const p=pickP(PASTEL_WALL.house,rr()); icP.setXYZ(n,p.r,p.g,p.b); n++; }
+  im.count=n; im.instanceColor=icR; im.userData.ic=[icR,icP]; im.castShadow=false; im.receiveShadow=true; im.computeBoundingSphere();
+  reg(im,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.9}),toon(hex('#ffffff'))); scene.add(im); TRIS+=n*12;
+  // Kamo river (approximate straight course beyond the data radius)
+  const gr=new GB(); gr.quad([2062,-.2,-4800],[2138,-.2,-4800],[2138,-.2,4800],[2062,-.2,4800],[0,0],[1,0],[1,1],[0,1],0,sRGBc(.30,.36,.24),hexc('#c4e6d8'),[0,1,0]);
+  gr.quad([2080,-.15,-4800],[2120,-.15,-4800],[2120,-.15,4800],[2080,-.15,4800],[0,0],[1,0],[1,1],[0,1],0,sRGBc(.16,.20,.18),hexc('#b6dde8'),[0,1,0]);
+  meshFrom(gr,[groundMat('real',1,{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4}),groundMat('pastel',1,{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4})],{cast:false,name:'kamo'});
+}
+
+// ---------- sky & image-based lighting ----------
+await tick('하늘과 빛');
+let skyTex, hdrTex;
+try{
+  [skyTex, hdrTex] = await Promise.all([new THREE.TextureLoader().loadAsync('sky_pretoria.jpg'), new RGBELoader().loadAsync('pretoria_gardens_1k.hdr')]);
+}catch(e){ console.warn('sky/HDRI load failed', e); }
+if(!skyTex){ skyTex=new THREE.DataTexture(new Uint8Array([150,175,215,255]),1,1);skyTex.needsUpdate=true; }
+skyTex.colorSpace=THREE.SRGBColorSpace; skyTex.wrapS=THREE.RepeatWrapping; skyTex.wrapT=THREE.ClampToEdgeWrapping; skyTex.minFilter=THREE.LinearMipmapLinearFilter; skyTex.anisotropy=8; skyTex.needsUpdate=true;
+const SKY_K = 0.41464788;
+// afternoon sun from the south-south-west (~37° elevation)
+const sunDir=new V3(-0.42,0.60,0.68).normalize();
+const SKY_ROT_ENV = Math.atan2(sunDir.z,sunDir.x) - 0.626;
+const SKY_ROT_BG = -2.175;
+const NOISE_GLSL=`
+float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),u.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x),u.y);}
+float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*vnoise(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return s;}
+float fbm3(vec2 p){float s=0.,a=.5;for(int i=0;i<3;i++){s+=a*vnoise(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return s;}
+float ign(vec2 p){return fract(52.9829189*fract(dot(p,vec2(.06711056,.00583715))));}
+`;
+const skyU={uPastel:{value:0},uTime:{value:0},uSun:{value:sunDir},tSky:{value:skyTex},uSkyRot:{value:SKY_ROT_BG},uSkyGain:{value:1/SKY_K},uSkyTint:{value:new THREE.Color(.9,.97,1.2)},uHaze:{value:new THREE.Color()}};
+const sky=new THREE.Mesh(new THREE.SphereGeometry(20000,48,24),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:skyU,
+  vertexShader:`varying vec3 vDir;void main(){vDir=position;vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_Position=p.xyww;}`,
+  fragmentShader:NOISE_GLSL+`varying vec3 vDir;uniform float uPastel,uTime,uSkyRot,uSkyGain;uniform vec3 uSun,uSkyTint,uHaze;uniform sampler2D tSky;
+  vec3 skyReal(vec3 d){
+    float az=atan(d.z,d.x)-uSkyRot; float u=az/6.2831853+.5; float el=degrees(asin(clamp(d.y,-1.,1.))); float v=clamp((el+6.)/96.,.002,.998);
+    vec2 gx=vec2(dFdx(u),dFdx(v)), gy=vec2(dFdy(u),dFdy(v)); float u2=fract(u+.5); float gx2=dFdx(u2), gy2=dFdy(u2);
+    if(abs(gx2)<abs(gx.x)) gx.x=gx2; if(abs(gy2)<abs(gy.x)) gy.x=gy2;
+    vec3 c=textureGrad(tSky,vec2(fract(u),v),gx,gy).rgb*uSkyGain*uSkyTint;
+    return mix(uHaze, c, smoothstep(-.02,.14,d.y)); }        // hazy horizon band blends into the aerial-perspective fog
+  vec3 skyPastel(vec3 d){ float h=max(d.y,0.);
+    vec3 col=mix(vec3(1.,.90,.82),vec3(.62,.70,.92),pow(h,.7));
+    if(d.y>0.){vec2 p=d.xz/(d.y+.12);float c=fbm(p*1.1+vec2(uTime*.004,0.));float c2=fbm(p*3.+5.);
+      float cov=smoothstep(.42,.75,c*.8+c2*.25)*smoothstep(0.,.18,d.y);
+      vec3 cloudP=mix(vec3(1.,.83,.78),vec3(.86,.80,.96),smoothstep(.3,.8,fbm(p*.6+2.)));cloudP=mix(cloudP,vec3(1.,.97,.92),smoothstep(.5,.9,c2));
+      col=mix(col,cloudP,cov*.85);}
+    float s=max(dot(d,uSun),0.);col+=vec3(1.,.9,.7)*(pow(s,600.)*3.+pow(s,8.)*.12)*.3;
+    return pow(col,vec3(2.2)); }
+  void main(){vec3 d=normalize(vDir); gl_FragColor=vec4(uPastel>.5?skyPastel(d):skyReal(d),1.);}`}));
+sky.renderOrder=-1;sky.frustumCulled=false;scene.add(sky);
+
+// environment (HDR, PMREM): real HDRI sky (sun clamped – the sun is the shadow-casting light) + a city/mountain horizon
+let envTex=null;
+{
+  const es=new THREE.Scene();
+  const em=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{tHdr:{value:hdrTex||null},uRot:{value:SKY_ROT_ENV},uHas:{value:hdrTex?1:0}},
+    vertexShader:`varying vec3 vDir;void main(){vDir=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader:NOISE_GLSL+`varying vec3 vDir;uniform sampler2D tHdr;uniform float uRot,uHas;
+    void main(){vec3 d=normalize(vDir);float az=atan(d.z,d.x);float u=(az-uRot)/6.2831853+.5;float v=asin(clamp(d.y,-1.,1.))/3.14159265+.5;
+      vec3 sky=uHas>.5?min(texture2D(tHdr,vec2(fract(u),v)).rgb,vec3(24.)):mix(vec3(1.3,1.45,1.7),vec3(.55,.8,1.5),clamp(d.y,0.,1.));
+      float el=degrees(asin(clamp(d.y,-1.,1.)));
+      float top=1.5+3.*fbm(vec2(az*4.,1.3))*(.5+.5*sin(az));
+      vec3 hills=vec3(.16,.19,.15)*(.7+.6*fbm(vec2(az*30.,el*.4)));
+      vec3 c=mix(sky,hills,smoothstep(top+.5,top-.5,el));
+      c=mix(c,vec3(.36,.35,.33),smoothstep(.5,-.5,el));
+      gl_FragColor=vec4(c,1.);}`});
+  es.add(new THREE.Mesh(new THREE.SphereGeometry(50,64,32),em));
+  const pm=new THREE.PMREMGenerator(renderer); envTex=pm.fromScene(es,0,0.1,100).texture; pm.dispose();
+  scene.environment=envTex;
+}
+
+// ---------- lights ----------
+const REAL={sun:8.0, env:.9, exposure:1.0, sunCol:srgb(1,.93,.82), fog:srgb(.60,.66,.74), fogD:0.00016};
+const hemi=new THREE.HemisphereLight(srgb(.75,.82,.95),srgb(.25,.30,.18),0);scene.add(hemi);
+const sun=new THREE.DirectionalLight(REAL.sunCol,REAL.sun);scene.add(sun,sun.target);
+sun.castShadow=true; const SHADOW_RES=MOBILE?2048:4096; sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES); sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.6;
+Object.assign(sun.shadow.camera,{near:10,far:7000});
+function fitShadow(){ // shadow frustum follows the orbit target and grows with viewing distance
+  const tgt=flying?flyLook:(NAV.mode!=='orbit'?NAV.look:controls.target); const d=camera.position.distanceTo(tgt);
+  const ext=Math.min(2300, Math.max(NAV.mode==='walk'?60:90, d*0.95));
+  const snap=ext*2/SHADOW_RES*4; const tx=Math.round(tgt.x/snap)*snap, tz=Math.round(tgt.z/snap)*snap;
+  sun.target.position.set(tx,0,tz); sun.position.set(tx,0,tz).addScaledVector(sunDir,3000);
+  const c=sun.shadow.camera; if(c.right!==ext){ c.left=-ext;c.right=ext;c.top=ext;c.bottom=-ext;c.updateProjectionMatrix(); }
+  sun.shadow.normalBias=ext/600; }
+scene.fog=new THREE.FogExp2(REAL.fog.clone(),REAL.fogD);
+skyU.uHaze.value.copy(REAL.fog);
+
+// ---------- water ----------
+const RS = CAPTURE?0.6:(MOBILE?0.33:0.5);
+const waterU={color:{value:null},tDiffuse:{value:null},textureMatrix:{value:null},uTime:{value:0},uPastel:{value:0},uFog:{value:new THREE.Color()},uFogD:{value:0.0016},
+  uBody:{value:srgb(.16,.24,.15)},uReflK:{value:.5},uDist:{value:.02},uSlope:{value:.08},uSunDir:{value:sunDir},uSunCol:{value:new THREE.Color(1,.9,.75)}};
+const water=new Reflector(WATER_GEO,{textureWidth:W*DPR*RS,textureHeight:H*DPR*RS,clipBias:0.003,multisample:(MOBILE||CAPTURE)?0:4,shader:{
+  uniforms:waterU,
+  vertexShader:`uniform mat4 textureMatrix;varying vec4 vUv;varying vec3 vW;void main(){vUv=textureMatrix*vec4(position,1.);vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+  fragmentShader:NOISE_GLSL+`uniform vec3 color;uniform sampler2D tDiffuse;uniform float uTime,uPastel,uFogD,uReflK,uDist,uSlope;uniform vec3 uFog,uBody,uSunDir,uSunCol;varying vec4 vUv;varying vec3 vW;
+  float wave(vec2 p){return fbm3(p*vec2(.32,.85)+vec2(uTime*.10,uTime*.03))*.65+fbm3(p*vec2(1.4,2.8)-vec2(uTime*.2,0.))*.3;}
+  void main(){vec2 p=vW.xz;float dist=length(cameraPosition-vW);vec3 V=normalize(cameraPosition-vW);vec3 c;
+    if(uPastel<.5){
+      float e=.07;float h0=wave(p),hx=wave(p+vec2(e,0.)),hz=wave(p+vec2(0.,e));
+      vec3 N=normalize(vec3(-(hx-h0)/e*uSlope,1.,-(hz-h0)/e*uSlope));
+      N=normalize(mix(N,vec3(0.,1.,0.),smoothstep(40.,600.,dist)*.8));
+      vec4 uv=vUv;uv.xy+=vec2(N.x,N.z*2.2)*uDist*uv.w;
+      vec3 refl=texture2DProj(tDiffuse,uv).rgb; refl=clamp(refl,0.,40.); if(!(refl.r>=0.&&refl.g>=0.&&refl.b>=0.)) refl=uBody;
+      float F=.02+.98*pow(1.-max(dot(N,V),0.),5.);
+      vec3 body=uBody*(.85+.3*fbm3(p*.05));                 // algae-tinted moat water (GSI aerial / moat photos)
+      c=mix(body,refl*uReflK,clamp(F*1.15+.08,0.,1.));
+      vec3 Rr=reflect(-V,N);c+=uSunCol*pow(max(dot(Rr,uSunDir),0.),900.)*6.;
+    } else {
+      float n1=fbm(p*vec2(.12,.45)+vec2(uTime*.12,uTime*.04));float n2=fbm(p*vec2(.3,1.1)-vec2(uTime*.18,0.));
+      vec2 dd=vec2(n1-.5,(n2-.5)*1.4)*0.014;vec4 uv=vUv;uv.xy+=dd*uv.w;vec3 refl=texture2DProj(tDiffuse,uv).rgb;
+      float fr=.55+.45*pow(1.-max(V.y,0.),4.);vec3 deepP=pow(vec3(.62,.84,.80),vec3(2.2));
+      c=mix(deepP,refl*1.05+.03,fr*.6);
+      float streak=smoothstep(.62,.78,fbm(p*vec2(.08,1.2)+vec2(0.,uTime*.1)));c+=streak*vec3(.10,.10,.09);
+    }
+    float fg=1.-exp(-uFogD*uFogD*dist*dist);c=mix(c,uFog,fg);
+    gl_FragColor=vec4(c,1.);}`}});
+// Reflector clones its uniforms: re-point waterU at the live ones so style/fog/time updates reach the shader
+for(const k in water.material.uniforms) if(k in waterU) waterU[k]=water.material.uniforms[k];
+water.rotation.x=-Math.PI/2;water.position.y=WATER_Y;scene.add(water);
+const pondMats=[new THREE.MeshStandardMaterial({color:srgb(.10,.13,.08),roughness:.06,metalness:0,envMapIntensity:1.2}), toon(hex('#bfe6dd'))];
+const ponds=new THREE.Mesh(PONDS_GEO); ponds.rotation.x=-Math.PI/2; ponds.position.y=POND_Y; ponds.receiveShadow=true; reg(ponds,pondMats[0],pondMats[1]); scene.add(ponds);
+
+// ---------- style switching ----------
+let curStyle=-1;
+const FOGP=[srgb(.98,.92,.90),0.000085];
+function applyStyle(s){
+  if(s!==curStyle){curStyle=s;for(const m of styled){m.material=m.userData.m[s];if(m.userData.ca)m.geometry.setAttribute('color',m.userData.ca[s]);if(m.userData.ic)m.instanceColor=m.userData.ic[s];}
+    for(const m of realOnly)m.visible=!s; for(const m of pastelOnly)m.visible=!!s;}
+  skyU.uPastel.value=s;waterU.uPastel.value=s;
+  const fc=s?FOGP[0]:REAL.fog, fd=s?FOGP[1]:REAL.fogD;
+  scene.fog.color.copy(fc);scene.fog.density=fd;waterU.uFog.value.copy(fc);waterU.uFogD.value=fd;
+  sun.color.copy(s?srgb(1,.95,.86):REAL.sunCol);sun.intensity=s?2.4:REAL.sun;hemi.intensity=s?1.9:0;scene.environmentIntensity=REAL.env;
+}
+
+// =====================================================================
+//  CAMERA MODES: 궤도 (orbit) · 드론 (free flight) · 걷기 (first-person walk)
+// =====================================================================
+const NAV={mode:'orbit', yaw:0, pitch:0, vel:new V3(), speed:40, bob:0, stepAcc:0, eyeY:1.6, run:false, look:new V3(), sound:true};
+const keys=new Set();
+const guideEl=document.getElementById('guide'), speedBox=document.getElementById('speedBox'), speedEl=document.getElementById('speed'), speedVal=document.getElementById('speedVal');
+const joyEl=document.getElementById('joy'), joyKnob=document.getElementById('joyKnob'), vbtns=document.getElementById('vbtns');
+const TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const GUIDE={
+  orbit:`<b>궤도</b> 드래그: 회전 · 우클릭/두 손가락: 이동 · 휠/핀치: 확대\n<b>S</b> 실사↔파스텔 · <b>F</b> 자동 비행 · <b>1/2/3</b> 궤도/드론/걷기`,
+  drone:`<b>드론</b> <b>WASD/방향키</b> 이동 · <b>Q/E</b> 또는 <b>Space/Shift</b> 상승/하강\n마우스 드래그: 시선 · 휠/슬라이더: 속도 · 고도 3 m~1.5 km\n<b>P</b> 실사↔파스텔 · <b>1/2/3</b> 모드`,
+  walk:`<b>걷기</b> 눈높이 1.6 m · <b>WASD/방향키</b> 걷기(1.4 m/s) · <b>Shift</b> 달리기\n마우스 드래그: 둘러보기 · 건물·벽·해자는 통과 불가 · <b>M</b> 발소리\n<b>P</b> 실사↔파스텔 · <b>1/2/3</b> 모드`};
+if(TOUCH){ GUIDE.drone=`<b>드론</b> 왼쪽 조이스틱: 이동 · 화면 드래그: 시선 · ▲▼ 상승/하강 · 슬라이더: 속도`; GUIDE.walk=`<b>걷기</b> 왼쪽 조이스틱: 걷기 · 화면 드래그: 둘러보기 · 달리기 버튼`; }
+const speedFromSlider=v=>Math.round(3*Math.pow(200/3,v/100));
+function setSpeed(v){ NAV.speed=v; speedVal.textContent=v; speedEl.value=Math.round(100*Math.log(v/3)/Math.log(200/3)); }
+speedEl.oninput=()=>{ NAV.speed=speedFromSlider(+speedEl.value); speedVal.textContent=NAV.speed; };
+const groundY=(x,z)=>{ const o=occAt(x,z); if(o&16) return inHonmaru([x,z])?HONZ:(.14+ (HONMARU_RING&&inCastle([x,z])?bridgeRamp(x,z):0)); return inHonmaru([x,z])?HONZ:0; };
+function bridgeRamp(x,z){ // Honmaru east/west bridges climb onto the raised island
+  let d=Infinity; for(const a of HONMARU_RING) d=Math.min(d,Math.hypot(a[0]-x,a[1]-z)); return Math.max(0,HONZ*(1-d/22)); }
+const walkable=(x,z)=>{ const o=occAt(x,z); if(o===255) return false; if(o&16) return true; return !(o&1) && !(o&2); };
+const walkableR=(x,z,r=.35)=>walkable(x,z)&&walkable(x+r,z)&&walkable(x-r,z)&&walkable(x,z+r)&&walkable(x,z-r);
+function findWalkable(x,z){ if(walkableR(x,z)) return [x,z]; for(let r=2;r<160;r+=2) for(let k=0;k<16;k++){ const a=k/16*6.283, px=x+Math.cos(a)*r, pz=z+Math.sin(a)*r; if(walkableR(px,pz)&&!(occAt(px,pz)&8)) return [px,pz]; } return [300,150]; }
+function camDirToYawPitch(){ const d=new V3(); camera.getWorldDirection(d); NAV.yaw=Math.atan2(-d.x,-d.z); NAV.pitch=Math.asin(Math.max(-1,Math.min(1,d.y))); }
+function applyLook(){ camera.rotation.set(0,0,0); camera.quaternion.setFromEuler(new THREE.Euler(NAV.pitch,NAV.yaw,0,'YXZ')); }
+function setMode(m, opt={}){
+  if(flying) stopFly();
+  const prev=NAV.mode; NAV.mode=m; keys.clear(); NAV.vel.set(0,0,0);
+  for(const [id,mm] of [['mOrbit','orbit'],['mDrone','drone'],['mWalk','walk']]) document.getElementById(id).classList.toggle('on',mm===m);
+  controls.enabled = m==='orbit';
+  speedBox.hidden = m!=='drone'; joyEl.hidden = !(TOUCH && m!=='orbit'); vbtns.hidden = !(TOUCH && m!=='orbit');
+  document.getElementById('vUp').style.display=document.getElementById('vDn').style.display = m==='drone'?'':'none';
+  document.getElementById('vRun').style.display = m==='walk'?'':'none';
+  guideEl.innerHTML=GUIDE[m];
+  document.getElementById('btnStyle').textContent = m==='orbit' ? '실사 3D ↔ 파스텔 화풍 (S)' : '실사 3D ↔ 파스텔 화풍 (P)';
+  if(m==='orbit'){ if(prev!=='orbit'){ const d=new V3(); camera.getWorldDirection(d); const t=camera.position.clone().addScaledVector(d, Math.max(40,camera.position.y*1.5)); if(t.y<0){ const k=camera.position.y/Math.max(1e-3,-d.y); t.copy(camera.position).addScaledVector(d,Math.min(k,3000)); } t.y=Math.max(0,t.y); controls.target.copy(t); camera.up.set(0,1,0); controls.update(); } return; }
+  camDirToYawPitch();
+  if(m==='drone'){ if(opt.pos) camera.position.set(...opt.pos); camera.position.y=Math.min(1500,Math.max(camera.position.y, hgtAt(camera.position.x,camera.position.z)+3)); if(opt.yaw!==undefined){NAV.yaw=opt.yaw;NAV.pitch=opt.pitch??-.25;} setSpeed(NAV.speed); }
+  if(m==='walk'){
+    let x,z; if(opt.pos){ [x,z]=opt.pos; } else { const t=controls.target; [x,z]=[t.x,t.z]; }
+    [x,z]=findWalkable(x,z); camera.position.set(x,groundY(x,z)+NAV.eyeY,z);
+    if(opt.yaw!==undefined) NAV.yaw=opt.yaw; NAV.pitch=opt.pitch??0; NAV.bob=0; }
+  applyLook();
+}
+// ---------- input ----------
+addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT') return; const k=e.key.length===1?e.key.toLowerCase():e.key;
+  if(k==='1') setMode('orbit'); else if(k==='2') setMode('drone'); else if(k==='3') setMode('walk');
+  if(NAV.mode!=='orbit'){ if(k==='p'||k==='ㅔ') toggleStyle(); if(k==='m'||k==='ㅡ') NAV.sound=!NAV.sound; keys.add(e.code); if(e.code.startsWith('Arrow')||e.code==='Space') e.preventDefault(); } });
+addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('blur',()=>keys.clear());
+let lookDrag=null;
+renderer.domElement.addEventListener('pointerdown',e=>{ if(NAV.mode==='orbit') return; lookDrag={id:e.pointerId,x:e.clientX,y:e.clientY}; renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener('pointermove',e=>{ if(!lookDrag||e.pointerId!==lookDrag.id) return; const s=TOUCH?.006:.0035; NAV.yaw-=(e.clientX-lookDrag.x)*s; NAV.pitch=Math.max(-1.45,Math.min(1.45,NAV.pitch-(e.clientY-lookDrag.y)*s)); lookDrag.x=e.clientX; lookDrag.y=e.clientY; });
+renderer.domElement.addEventListener('pointerup',e=>{ if(lookDrag&&e.pointerId===lookDrag.id) lookDrag=null; });
+renderer.domElement.addEventListener('wheel',e=>{ if(NAV.mode!=='drone') return; e.preventDefault(); setSpeed(Math.max(3,Math.min(200,Math.round(NAV.speed*(e.deltaY<0?1.15:1/1.15))))); },{passive:false});
+// virtual joystick + up/down/run buttons (touch)
+const joy={x:0,y:0,id:null};
+joyEl.addEventListener('pointerdown',e=>{ joy.id=e.pointerId; joyEl.setPointerCapture(e.pointerId); joyMove(e); });
+joyEl.addEventListener('pointermove',e=>{ if(e.pointerId===joy.id) joyMove(e); });
+const joyEnd=e=>{ if(e.pointerId===joy.id){ joy.id=null; joy.x=joy.y=0; joyKnob.style.transform=''; } };
+joyEl.addEventListener('pointerup',joyEnd); joyEl.addEventListener('pointercancel',joyEnd);
+function joyMove(e){ const r=joyEl.getBoundingClientRect(); let dx=(e.clientX-r.left-r.width/2)/(r.width/2), dy=(e.clientY-r.top-r.height/2)/(r.height/2); const l=Math.hypot(dx,dy); if(l>1){dx/=l;dy/=l;} joy.x=dx; joy.y=dy; joyKnob.style.transform=`translate(${dx*38}px,${dy*38}px)`; }
+const hold={up:false,dn:false,run:false};
+for(const [id,k] of [['vUp','up'],['vDn','dn'],['vRun','run']]){ const b=document.getElementById(id); b.addEventListener('pointerdown',e=>{e.preventDefault();hold[k]=k==='run'?!hold[k]:true; if(k==='run') b.classList.toggle('on',hold.run);}); if(k!=='run'){ b.addEventListener('pointerup',()=>hold[k]=false); b.addEventListener('pointerleave',()=>hold[k]=false); } }
+document.getElementById('mOrbit').onclick=()=>setMode('orbit');
+document.getElementById('mDrone').onclick=()=>setMode('drone');
+document.getElementById('mWalk').onclick=()=>setMode('walk');
+// soft synthesized footsteps (Web Audio, no files)
+let actx=null; function footstep(run){ if(!NAV.sound) return; try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); const n=actx.sampleRate*.09|0; const buf=actx.createBuffer(1,n,actx.sampleRate); const d=buf.getChannelData(0);
+  for(let i=0;i<n;i++){ const t=i/n; d[i]=(Math.random()*2-1)*Math.pow(1-t,3)*(t<.08?t/.08:1); }
+  const src=actx.createBufferSource(); src.buffer=buf; const f=actx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=run?1400:900; const g=actx.createGain(); g.gain.value=run?.10:.06;
+  src.connect(f).connect(g).connect(actx.destination); src.start(); }catch(e){} }
+// ---------- per-frame navigation ----------
+const _f=new V3(), _r=new V3(), _w=new V3();
+function navUpdate(dt){
+  const K=c=>keys.has(c);
+  let fx=(K('KeyD')||K('ArrowRight')?1:0)-(K('KeyA')||K('ArrowLeft')?1:0) + joy.x;
+  let fz=(K('KeyW')||K('ArrowUp')?1:0)-(K('KeyS')||K('ArrowDown')?1:0) - joy.y;
+  const fl=Math.hypot(fx,fz); if(fl>1){fx/=fl;fz/=fl;}
+  if(NAV.mode==='drone'){
+    let fy=(K('KeyE')||K('Space')||hold.up?1:0)-(K('KeyQ')||K('ShiftLeft')||K('ShiftRight')||hold.dn?1:0);
+    _f.set(-Math.sin(NAV.yaw)*Math.cos(NAV.pitch), Math.sin(NAV.pitch), -Math.cos(NAV.yaw)*Math.cos(NAV.pitch)); _r.set(Math.cos(NAV.yaw),0,-Math.sin(NAV.yaw));
+    const alt=Math.max(1,camera.position.y); const sp=NAV.speed*(.35+.65*Math.min(1,alt/60));     // gentler near the ground
+    _w.copy(_f).multiplyScalar(fz*sp).addScaledVector(_r,fx*sp); _w.y+=fy*sp*.7;
+    NAV.vel.lerp(_w, 1-Math.exp(-dt*2.6));                                                       // inertia
+    camera.position.addScaledVector(NAV.vel,dt);
+    const p=camera.position; const R2=4600; const hr=Math.hypot(p.x,p.z); if(hr>R2){ p.x*=R2/hr; p.z*=R2/hr; }
+    const floor=Math.max(groundY(p.x,p.z), hgtAt(p.x,p.z), hgtAt(p.x+3,p.z), hgtAt(p.x-3,p.z), hgtAt(p.x,p.z+3), hgtAt(p.x,p.z-3))+3;
+    if(p.y<floor){ p.y+= (floor-p.y)*Math.min(1,dt*8); if(NAV.vel.y<0) NAV.vel.y*=.5; } if(p.y>1500){ p.y=1500; NAV.vel.y=Math.min(0,NAV.vel.y); }
+    NAV.bank=(NAV.bank||0)+((-fx*.06)-(NAV.bank||0))*Math.min(1,dt*3);
+    camera.quaternion.setFromEuler(new THREE.Euler(NAV.pitch,NAV.yaw,NAV.bank,'YXZ'));
+  } else if(NAV.mode==='walk'){
+    const run=K('ShiftLeft')||K('ShiftRight')||hold.run; const sp=run?4.2:1.4;
+    _r.set(Math.cos(NAV.yaw),0,-Math.sin(NAV.yaw)); _f.set(-Math.sin(NAV.yaw),0,-Math.cos(NAV.yaw));
+    _w.copy(_f).multiplyScalar(fz*sp).addScaledVector(_r,fx*sp);
+    NAV.vel.lerp(_w, 1-Math.exp(-dt*7));
+    const p=camera.position; const nx=p.x+NAV.vel.x*dt, nz=p.z+NAV.vel.z*dt;
+    // collision: try full move, then slide along each axis
+    if(walkableR(nx,nz)){ p.x=nx; p.z=nz; } else if(walkableR(nx,p.z)){ p.x=nx; NAV.vel.z*=.3; } else if(walkableR(p.x,nz)){ p.z=nz; NAV.vel.x*=.3; } else NAV.vel.multiplyScalar(.2);
+    const v=Math.hypot(NAV.vel.x,NAV.vel.z);
+    const stride=run?1.0:.72; const prevPh=NAV.bob; NAV.bob+=v*dt/stride*Math.PI;
+    if(Math.floor(prevPh/Math.PI)!==Math.floor(NAV.bob/Math.PI) && v>.4) footstep(run);
+    const amp=Math.min(1,v/1.4)*(run?.06:.035);
+    const gy=groundY(p.x,p.z)+NAV.eyeY; NAV.gy = NAV.gy===undefined?gy:NAV.gy+(gy-NAV.gy)*Math.min(1,dt*5);   // follow ground smoothly (bridges, Honmaru)
+    p.y = NAV.gy + Math.abs(Math.sin(NAV.bob))*amp*1.6 - amp*.6;
+    const roll=Math.sin(NAV.bob)*amp*.08, nod=Math.cos(NAV.bob*2)*amp*.05;
+    camera.quaternion.setFromEuler(new THREE.Euler(NAV.pitch+nod,NAV.yaw,roll,'YXZ'));
+  }
+  _f.set(0,0,-1).applyQuaternion(camera.quaternion);
+  NAV.look.copy(camera.position).addScaledVector(_f, NAV.mode==='walk'?25:Math.max(60,camera.position.y*1.2)); NAV.look.y=Math.max(0,Math.min(NAV.look.y,camera.position.y));
+}
+
+const ATTR_HTML=`<b>데이터·자료 출처</b><br>
+지도(도로·건물·물길·녹지·나무): © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>, ODbL 1.0 (Geofabrik 간사이 추출본, 2026-11-13)<br>
+하늘/조명 HDRI: <a href="https://polyhaven.com/a/pretoria_gardens" target="_blank">Poly Haven “Pretoria Gardens”</a> (CC0)<br>
+색 기준 참고 사진 (Wikimedia Commons):<br>
+· 東大手門 — Zairon, “Kyoto Nijo-jo Osttor 1”, CC BY-SA 4.0<br>
+· 二の丸御殿 — Martin Falbisoner, “Ninomaru Palace, November 2016”, CC BY-SA 4.0<br>
+· 외堀·隅櫓 — そらみみ (Soramimi), “Moat of Nijo Castle 1”, CC BY-SA 3.0<br>
+· 항공사진 — 国土地理院 (GSI), “Nijo Castle aerial photo 2020”, 출처 표시<br>
+· 교토 시가지 — HAGAT hOMSZE, “Kyoto City Tower view down town”, CC0 · ccfarmer, “Kyoto Machiya”, CC BY 3.0<br>
+<i>높이 태그가 없는 건물은 용도·면적·간선도로 인접 여부로 층수를 추정했고, 니조성 건물 형태는 OSM 평면 위에 절차적으로 재구성했습니다.</i>`;
+// ---------- render targets (all 16-bit float) & post ----------
+function makeRTs(){const w=Math.floor(W*DPR),h=Math.floor(H*DPR);
+  const a=new THREE.WebGLRenderTarget(w,h,{type:THREE.HalfFloatType,samples:MOBILE?0:4});a.depthTexture=new THREE.DepthTexture(w,h);a.depthTexture.type=THREE.UnsignedIntType;
+  const b=new THREE.WebGLRenderTarget(w,h,{type:THREE.HalfFloatType});b.depthTexture=new THREE.DepthTexture(w,h);b.depthTexture.type=THREE.UnsignedIntType;
+  const bw=Math.max(1,w>>2),bh=Math.max(1,h>>2);
+  const c=new THREE.WebGLRenderTarget(bw,bh,{type:THREE.HalfFloatType}),d=new THREE.WebGLRenderTarget(bw,bh,{type:THREE.HalfFloatType});
+  return [a,b,c,d];}
+let [rtR,rtP,rtB1,rtB2]=makeRTs();
+const fsVS=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+const brightMat=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{tSrc:{value:null},uTexel:{value:new THREE.Vector2()},uThresh:{value:7.0}},vertexShader:fsVS,
+  fragmentShader:`varying vec2 vUv;uniform sampler2D tSrc;uniform vec2 uTexel;uniform float uThresh;
+  void main(){vec3 c=(texture2D(tSrc,vUv+uTexel*vec2(-1.,-1.)).rgb+texture2D(tSrc,vUv+uTexel*vec2(1.,-1.)).rgb+texture2D(tSrc,vUv+uTexel*vec2(-1.,1.)).rgb+texture2D(tSrc,vUv+uTexel*vec2(1.,1.)).rgb)*.25;
+    float l=max(c.r,max(c.g,c.b));float k=max(l-uThresh,0.)/max(l,1e-4);gl_FragColor=vec4(min(c*k,vec3(60.)),1.);}`});
+const blurMat=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{tSrc:{value:null},uDir:{value:new THREE.Vector2()}},vertexShader:fsVS,
+  fragmentShader:`varying vec2 vUv;uniform sampler2D tSrc;uniform vec2 uDir;
+  void main(){vec3 c=texture2D(tSrc,vUv).rgb*.227027;
+    c+=(texture2D(tSrc,vUv+uDir*1.3846).rgb+texture2D(tSrc,vUv-uDir*1.3846).rgb)*.3162162;
+    c+=(texture2D(tSrc,vUv+uDir*3.2308).rgb+texture2D(tSrc,vUv-uDir*3.2308).rgb)*.0702703;
+    gl_FragColor=vec4(c,1.);}`});
+const post=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{
+    tReal:{value:rtR.texture},tPastel:{value:rtP.texture},tDepth:{value:rtP.depthTexture},tDepthR:{value:rtR.depthTexture},tBloom:{value:rtB1.texture},
+    uRes:{value:new THREE.Vector2(W*DPR,H*DPR)},uProg:{value:0},uTime:{value:0},uNear:{value:camera.near},uFar:{value:camera.far},uScale:{value:DPR},
+    uInvProj:{value:new THREE.Matrix4()},uProjY:{value:1},
+    uExposure:{value:REAL.exposure},uTM:{value:1},uContrast:{value:1.08},uSat:{value:.95},uAO:{value:.85},uAOR:{value:1.3},uAOK:{value:1.1},uBloomStr:{value:.05},uVig:{value:.28},
+    uLift:{value:new THREE.Vector3(.015,.018,.035)},uGamma:{value:new THREE.Vector3(1,1,1)},uGain:{value:new THREE.Vector3(1,1,1)},
+    uShadowTint:{value:new THREE.Vector3(.97,.99,1.03)},uHighTint:{value:new THREE.Vector3(1.03,1.0,.96)},
+    uP3:{value:0},uDither:{value:1/255}},
+  vertexShader:fsVS,
+  fragmentShader:NOISE_GLSL+`varying vec2 vUv;uniform sampler2D tReal,tPastel,tDepth,tDepthR,tBloom;uniform vec2 uRes;uniform float uProg,uTime,uNear,uFar,uScale;
+  uniform mat4 uInvProj;uniform float uProjY,uExposure,uTM,uContrast,uSat,uAO,uAOR,uAOK,uBloomStr,uVig,uP3,uDither;uniform vec3 uLift,uGamma,uGain,uShadowTint,uHighTint;
+  vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
+  vec3 toS(vec3 c){c=max(c,0.);return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));}
+  vec3 toL(vec3 c){c=max(c,0.);return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(.04045,c));}
+  vec3 toSx(vec3 c){return sign(c)*toS(abs(c));} vec3 toLx(vec3 c){return sign(c)*toL(abs(c));}
+  float ld(vec2 uv){float z=texture2D(tDepth,uv).x*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
+  float lum(vec3 c){return dot(c,vec3(.299,.587,.114));}
+  // --- tone mappers (input/output linear sRGB) ---
+  vec3 agxCurve(vec3 x){vec3 x2=x*x;vec3 x4=x2*x2;return 15.5*x4*x2-40.14*x4*x+31.96*x4-6.868*x2*x+.4298*x2+.1191*x-.00232;}
+  vec3 agx(vec3 color){
+    const mat3 S2R=mat3(vec3(.6274,.0691,.0164),vec3(.3293,.9195,.0880),vec3(.0433,.0113,.8956));
+    const mat3 R2S=mat3(vec3(1.6605,-.1246,-.0182),vec3(-.5876,1.1329,-.1006),vec3(-.0728,-.0083,1.1187));
+    const mat3 Ins=mat3(vec3(.856627153315983,.137318972929847,.11189821299995),vec3(.0951212405381588,.761241990602591,.0767994186031903),vec3(.0482516061458583,.101439036467562,.811302368396859));
+    const mat3 Out=mat3(vec3(1.1271005818144368,-.1413297634984383,-.14132976349843826),vec3(-.11060664309660323,1.157823702216272,-.11060664309660294),vec3(-.016493938717834573,-.016493938717834257,1.2519364065950405));
+    color=Ins*(S2R*color);color=max(color,1e-10);color=clamp((log2(color)+12.47393)/16.5,0.,1.);color=agxCurve(color);
+    float l=dot(color,vec3(.2126,.7152,.0722));color=pow(max(color,0.),vec3(1.25));color=l+1.3*(color-l);  // 'punchy' look
+    color=Out*color;color=pow(max(color,0.),vec3(2.2));return R2S*color;}
+  vec3 neutral(vec3 color){const float SC=.76;const float DS=.15;float x=min(color.r,min(color.g,color.b));float off=x<.08?x-6.25*x*x:.04;color-=off;
+    float peak=max(color.r,max(color.g,color.b));if(peak<SC)return color;const float d=1.-SC;float np=1.-d*d/(peak+d-SC);color*=np/peak;
+    float g=1.-1./(DS*(peak-np)+1.);return mix(color,vec3(np),g);}
+  // --- screen-space ambient occlusion from the 24-bit depth buffer ---
+  vec3 vpos(vec2 uv){float d=texture2D(tDepthR,uv).x;vec4 v=uInvProj*vec4(uv*2.-1.,d*2.-1.,1.);return v.xyz/v.w;}
+  float ssao(vec2 uv){
+    float d0=texture2D(tDepthR,uv).x;if(d0>.99999)return 1.;
+    vec3 P=vpos(uv);float z=-P.z;if(z>1800.)return 1.;
+    vec2 px=1./uRes;
+    vec3 dx=vpos(uv+vec2(px.x,0.))-P,dy=vpos(uv+vec2(0.,px.y))-P,dx2=P-vpos(uv-vec2(px.x,0.)),dy2=P-vpos(uv-vec2(0.,px.y));
+    if(abs(dx2.z)<abs(dx.z))dx=dx2;if(abs(dy2.z)<abs(dy.z))dy=dy2;
+    vec3 N=normalize(cross(dx,dy));if(dot(N,P)>0.)N=-N;
+    float Rr=uAOR*(1.+z*.012);float rs=min(Rr*uProjY*.5/z,.1);
+    float ang=ign(gl_FragCoord.xy)*6.2831853;float sum=0.;
+    for(int i=0;i<12;i++){float t=(float(i)+.5)/12.;float a=ang+float(i)*2.39996;vec2 off=vec2(cos(a),sin(a))*sqrt(t)*rs;off.x*=uRes.y/uRes.x;
+      vec3 v=vpos(uv+off)-P;float vv=dot(v,v);float vn=dot(v,N);
+      sum+=max(0.,1.-vv/(Rr*Rr))*max(0.,vn-.004*z)/(vv+.02*Rr*Rr);}
+    return clamp(1.-uAOK*Rr*sum/12.,0.,1.);}
+  vec3 realLook(vec2 uv){   // returns linear sRGB (may exceed the sRGB gamut slightly – kept for Display-P3 output)
+    vec3 c=texture2D(tReal,uv).rgb;
+    c*=mix(1.,ssao(uv),uAO);
+    c+=texture2D(tBloom,uv).rgb*uBloomStr;
+    c*=uExposure;
+    c=uTM<.5?agx(c):(uTM<1.5?neutral(c):aces(c));
+    vec3 lg=log2(max(c,1e-6)/.18)*uContrast;c=.18*exp2(lg);
+    float L=dot(c,vec3(.2126,.7152,.0722));
+    c=L+uSat*(c-L);
+    c*=mix(uShadowTint,uHighTint,smoothstep(.0,.55,L));
+    vec3 e=toSx(c);
+    e=uGain*(e+uLift*(1.-e));e=sign(e)*pow(abs(e),1./uGamma);
+    vec2 q=uv-.5;e*=1.-dot(q,q)*uVig;
+    return toLx(e);}
+  vec3 pastelLook(vec2 uv){   // returns display-encoded sRGB (unchanged watercolour look)
+    vec2 px=1./uRes;float sc=uScale;
+    vec2 w=vec2(fbm(uv*7.+3.1),fbm(uv*7.+8.7))-.5;
+    vec2 u2=uv+w*px*7.*sc;
+    vec3 c0=texture2D(tPastel,u2).rgb;
+    vec3 a=texture2D(tPastel,u2+px*vec2(2.,1.)*sc).rgb,b=texture2D(tPastel,u2+px*vec2(-2.,-1.)*sc).rgb,c1=texture2D(tPastel,u2+px*vec2(-1.,2.)*sc).rgb,d=texture2D(tPastel,u2+px*vec2(1.,-2.)*sc).rgb;
+    vec3 c=c0*.4+(a+b+c1+d)*.15;
+    c=toS(aces(c*1.15));
+    float l=lum(c);c=mix(vec3(l),c,1.18);c=c*.86+vec3(.13,.11,.10);
+    float le=abs(lum(a)-lum(b))+abs(lum(c1)-lum(d));
+    vec2 o=px*1.2*sc;float d0=ld(uv);
+    float dl=ld(uv-vec2(o.x,0.)),dr=ld(uv+vec2(o.x,0.)),du=ld(uv+vec2(0.,o.y)),dd=ld(uv-vec2(0.,o.y));
+    float lap=(abs(dl+dr-2.*d0)+abs(du+dd-2.*d0))/d0;float sil=max(max(abs(dl-d0),abs(dr-d0)),max(abs(du-d0),abs(dd-d0)))/d0;
+    float ink=max(smoothstep(.02,.06,lap),smoothstep(.06,.18,sil));
+    vec3 cl=texture2D(tPastel,uv-vec2(o.x,0.)).rgb,cr=texture2D(tPastel,uv+vec2(o.x,0.)).rgb,cu=texture2D(tPastel,uv+vec2(0.,o.y)).rgb,cd=texture2D(tPastel,uv-vec2(0.,o.y)).rgb;
+    float ce=length(toS(cl)-toS(cr))+length(toS(cu)-toS(cd));ink=max(ink,smoothstep(.22,.5,ce)*.55);
+    ink*=smoothstep(3200.,150.,d0)*(.65+.35*vnoise(uv*uRes*.08));
+    c=mix(c,c*.86,smoothstep(.05,.25,le)*.6);
+    c=mix(c,vec3(.30,.22,.22),ink*.8);
+    vec2 pp=uv*uRes/sc;
+    float g=fbm(pp*.35);float g2=vnoise(pp*1.3);float fib=vnoise(vec2(pp.x*.04,pp.y*.9))*vnoise(vec2(pp.x*.9,pp.y*.05));
+    c*=.94+.09*g; c+= (g2-.5)*.035; c-=fib*.03;
+    c+=vec3(.025,.018,.0)*(1.-l);
+    vec2 q=uv-.5;c=mix(c,c*vec3(.95,.92,.9),dot(q,q)*.8);
+    return c;}
+  void main(){vec2 uv=vUv;vec3 lin;
+    if(uProg<=0.001)lin=realLook(uv);
+    else if(uProg>=.999)lin=toL(pastelLook(uv));
+    else{vec3 r=toSx(realLook(uv)),p=pastelLook(uv),col;
+      vec2 a=uv*vec2(uRes.x/uRes.y,1.);
+      float n=fbm(a*2.5)*.75+vnoise(a*14.)*.25; n=n*.85+(1.-uv.y)*.05+length(uv-.5)*.2;
+      float t=uProg*1.3-.15;
+      float m=smoothstep(t+.015,t-.015,n);col=mix(r,p,m);
+      float e=1.-smoothstep(0.,.022,abs(n-t));float e2=1.-smoothstep(0.,.006,abs(n-t));
+      col+=e*e*vec3(1.,.45,.08)*1.1+e2*vec3(1.,.9,.7)*.9;
+      col=mix(col,vec3(1.,.98,.94),exp(-pow((uProg-.5)*5.,2.))*.28);
+      lin=toLx(col);}
+    vec3 o=uP3>.5?vec3(dot(lin,vec3(.8224621,.177538,0.)),dot(lin,vec3(.0331941,.9668058,0.)),dot(lin,vec3(.0170827,.0723974,.9105199))):lin;
+    o=toS(clamp(o,0.,1.));
+    vec2 fc=gl_FragCoord.xy;
+    vec3 n1=vec3(ign(fc),ign(fc+vec2(17.,59.)),ign(fc+vec2(113.,7.))),n2=vec3(ign(fc+vec2(41.,23.)),ign(fc+vec2(3.,97.)),ign(fc+vec2(71.,131.)));
+    o+=(n1+n2-1.)*uDither;   // triangular-PDF dither before quantisation -> no banding in sky/water gradients
+    gl_FragColor=vec4(o,1.);}`});
+const fsScene=new THREE.Scene(),fsCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const fsq=new THREE.Mesh(new THREE.PlaneGeometry(2,2),post);fsq.frustumCulled=false;fsScene.add(fsq);
+function pass(mat,target){fsq.material=mat;renderer.setRenderTarget(target);renderer.render(fsScene,fsCam);}
+function syncOutputUniforms(){post.uniforms.uP3.value=OUT.p3?1:0;post.uniforms.uDither.value=OUT.f16?1/1023:1/255;}
+syncOutputUniforms();
+
+// ---------- dynamic depth range (keeps 24-bit depth precise from street level to the 4 km overview) ----------
+const needle=document.getElementById('needle');
+function updateNearFar(){ const h=Math.max(1,camera.position.y); const n=NAV.mode==='walk'?.25:Math.min(80,Math.max(.6,h*.12)); const fr=NAV.mode==='walk'?14000:30000; if(Math.abs(n-camera.near)>.05*camera.near||fr!==camera.far){camera.near=n;camera.far=fr;camera.updateProjectionMatrix();}
+  post.uniforms.uNear.value=camera.near; post.uniforms.uFar.value=camera.far; }
+// ---------- state & animation ----------
+let target=0, prog=0, simT=0;
+const TRANS=1.0;
+const modeEl=document.getElementById('mode');
+function toggleStyle(){target=1-target;modeEl.textContent=target?'현재: 파스텔 화풍':'현재: 실사 3D';}
+function setStyleInstant(s){target=s;prog=s;modeEl.textContent=s?'현재: 파스텔 화풍':'현재: 실사 3D';}
+const FLY=34;
+const flyPos=new THREE.CatmullRomCurve3([[HOME_POS.x,HOME_POS.y,HOME_POS.z],[900,420,1000],[560,90,420],[420,22,170],[330,30,40],[160,70,-40],[60,55,-120],[-80,40,-110],[-170,30,40],[-90,60,200],[160,140,420],[700,520,1300],[HOME_POS.x,HOME_POS.y,HOME_POS.z]].map(a=>new V3(...a)),false,'centripetal');
+const flyTgt=new THREE.CatmullRomCurve3([[HOME_TGT.x,HOME_TGT.y,HOME_TGT.z],[100,0,120],[270,6,150],[260,8,146],[150,6,70],[40,5,20],[-30,4,10],[-40,4,0],[-100,6,60],[0,5,30],[0,0,0],[-40,0,20],[HOME_TGT.x,HOME_TGT.y,HOME_TGT.z]].map(a=>new V3(...a)));
+const flyLook=new V3();
+let flying=false,flyT=0,tog=[false,false];
+const btnFly=document.getElementById('btnFly');
+function startFly(){flying=true;flyT=0;tog=[false,false];controls.enabled=false;btnFly.classList.add('on');btnFly.textContent='비행 중지';}
+function stopFly(){flying=false;controls.enabled=true;controls.target.copy(flyTgt.getPointAt(Math.min(1,Math.max(0,ease(flyT/FLY)))));controls.update();btnFly.classList.remove('on');btnFly.textContent='자동 비행';}
+const ease=u=>u-Math.sin(2*Math.PI*u)/(2*Math.PI);
+function update(dt){
+  simT+=dt;
+  if(prog<target)prog=Math.min(target,prog+dt/TRANS);else if(prog>target)prog=Math.max(target,prog-dt/TRANS);
+  if(flying){flyT+=dt;const u=Math.min(1,flyT/FLY),e=ease(u);camera.position.copy(flyPos.getPointAt(e));flyLook.copy(flyTgt.getPointAt(e));camera.lookAt(flyLook);
+    if(u>.38&&!tog[0]){tog[0]=true;toggleStyle();} if(u>.78&&!tog[1]){tog[1]=true;toggleStyle();}
+    if(u>=1)stopFly();}
+  else if(NAV.mode!=='orbit'){ navUpdate(dt); }
+  else {controls.update(); if(camera.position.y<1.6){camera.position.y=1.6;}}
+  updateNearFar(); updateTreeLOD(camera); fitShadow(); needle.style.transform=`rotate(${Math.atan2(camera.position.x-(flying?flyLook:NAV.mode!=='orbit'?NAV.look:controls.target).x, camera.position.z-(flying?flyLook:NAV.mode!=='orbit'?NAV.look:controls.target).z)*-180/Math.PI+180}deg)`;
+  sky.position.copy(camera.position);
+  skyU.uTime.value=simT;waterU.uTime.value=simT;post.uniforms.uTime.value=simT;
+}
+const BLOOM=!MOBILE;
+function render(){
+  const easeP=prog*prog*(3-2*prog);
+  camera.updateMatrixWorld();
+  post.uniforms.uInvProj.value.copy(camera.projectionMatrixInverse);post.uniforms.uProjY.value=camera.projectionMatrix.elements[5];
+  if(easeP<1){applyStyle(0);renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rtR);renderer.render(scene,camera);
+    if(BLOOM){brightMat.uniforms.tSrc.value=rtR.texture;brightMat.uniforms.uTexel.value.set(1/rtR.width,1/rtR.height);pass(brightMat,rtB1);
+      for(let i=0;i<2;i++){blurMat.uniforms.tSrc.value=rtB1.texture;blurMat.uniforms.uDir.value.set((1+i)/rtB1.width,0);pass(blurMat,rtB2);
+        blurMat.uniforms.tSrc.value=rtB2.texture;blurMat.uniforms.uDir.value.set(0,(1+i)/rtB1.height);pass(blurMat,rtB1);}}}
+  if(easeP>0){applyStyle(1);renderer.shadowMap.needsUpdate=true;renderer.setRenderTarget(rtP);renderer.render(scene,camera);}
+  post.uniforms.uProg.value=easeP;
+  pass(post,null);
+}
+applyStyle(1);renderer.compile(scene,camera);applyStyle(0);renderer.compile(scene,camera);
+updateBadge(); console.log('tris', Math.round(TRIS), 'trees', TREES.length, 'buildings', STATS.buildings);
+
+document.getElementById('btnStyle').onclick=toggleStyle;
+btnFly.onclick=()=>{ if(NAV.mode!=='orbit') setMode('orbit'); flying?stopFly():startFly(); };
+document.getElementById('btnReset').onclick=()=>{if(NAV.mode!=='orbit')setMode('orbit');if(flying)stopFly();camera.position.copy(HOME_POS);controls.target.copy(HOME_TGT);controls.update();};
+document.getElementById('btnCastle').onclick=()=>{if(NAV.mode!=='orbit')setMode('orbit');if(flying)stopFly();camera.position.copy(CASTLE_POS);controls.target.copy(CASTLE_TGT);controls.update();};
+document.getElementById('attrLink').onclick=(e)=>{e.preventDefault();const a=document.getElementById('attr');a.hidden=!a.hidden;};
+addEventListener('keydown',e=>{if(NAV.mode!=='orbit'||e.target.tagName==='INPUT')return;if(e.key==='s'||e.key==='S'||e.key==='ㄴ')toggleStyle();if(e.key==='f'||e.key==='F')flying?stopFly():startFly();});
+renderer.domElement.addEventListener('pointerdown',()=>{if(flying)stopFly();});
+guideEl.innerHTML=GUIDE.orbit;
+addEventListener('resize',()=>{if(CAPTURE)return;W=innerWidth;H=innerHeight;camera.aspect=W/H;camera.updateProjectionMatrix();renderer.setSize(W,H);configureOutput();syncOutputUniforms();updateBadge();
+  for(const r of [rtR,rtP,rtB1,rtB2])r.dispose();[rtR,rtP,rtB1,rtB2]=makeRTs();
+  Object.assign(post.uniforms,{});post.uniforms.tReal.value=rtR.texture;post.uniforms.tPastel.value=rtP.texture;post.uniforms.tDepth.value=rtP.depthTexture;post.uniforms.tDepthR.value=rtR.depthTexture;post.uniforms.tBloom.value=rtB1.texture;post.uniforms.uRes.value.set(W*DPR,H*DPR);
+  water.getRenderTarget().setSize(W*DPR*RS,H*DPR*RS);});
+
+window.APP={THREE,setMode,NAV,keys,walkable,groundY,hgtAt,
+  toggleStyle,setStyleInstant,startFly,stopFly,U:post.uniforms,WU:waterU,SKY:skyU,REAL,sun,scene,OUT,renderer,STATS,castleNamed,camera,controls,
+  get flyT(){return flyT;}, set flyT(v){flyT=v;},
+  step(dt){update(dt);render();},
+  advance(dt){update(dt);},
+  setView(p,t){camera.position.set(...p);controls.target.set(...t);controls.update();},
+  home(){camera.position.copy(HOME_POS);controls.target.copy(HOME_TGT);controls.update();},
+  setProg(p){prog=p;target=p>=.5?1:0;},
+  setReal(o){Object.assign(REAL,o);curStyle=-1;},
+  grab(q=.92){return renderer.domElement.toDataURL(q>=1?'image/png':'image/jpeg',q);},
+  get flying(){return flying;}};
+
+const loading=document.getElementById('loading');
+let last=performance.now(),first=true;
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);render();if(first){first=false;loading.style.opacity=0;setTimeout(()=>loading.remove(),700);}requestAnimationFrame(loop);}
+document.getElementById('attr').innerHTML=ATTR_HTML;
+if(CAPTURE){update(0);render();loading.remove();window.APP.ready=true;}else requestAnimationFrame(loop);
+</script>
+</body>
+</html>
