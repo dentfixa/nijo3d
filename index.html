@@ -115,6 +115,9 @@ const LOWMEM = (navigator.deviceMemory||8) <= 4;
 // light profile: iOS / mobile / low-memory devices by default, ?lite=1 forces it, ?full=1 (or ?lite=0) forces the full desktop pipeline
 const LITE = params.get('lite')==='1' || (params.get('full')!=='1' && params.get('lite')!=='0' && (MOBILE || LOWMEM));
 if (LITE) document.body.classList.add('lite');
+// light profile = 1 km detailed core: PLATEAU buildings from the local package inside CORE_R, cheap context outside
+const CORE_R = 1000;
+const PKG1K = LITE && params.get('tiles')!=='0' && params.get('tiles')!=='1';
 const V3 = THREE.Vector3;
 const lprog = document.getElementById('lprog');
 const lbar = document.getElementById('lbar');
@@ -170,7 +173,7 @@ const STATS={tris:0,calls:0,buildings:0,roads:0,trees:0};
 function updateBadge(){
   const hdr = matchMedia('(dynamic-range: high)').matches;
   const bpc = Math.round((screen.colorDepth||24)/3);
-  badge.innerHTML = (LITE?`<b>가벼운 모드</b> (휴대폰용) · `:``)+`내부 렌더링: <b>${RT_TYPE===THREE.HalfFloatType?'16비트 부동소수 HDR</b> (RGBA16F)':'8비트</b> (RGBA8)'}<br>`+
+  badge.innerHTML = (LITE?`<b>휴대폰 모드</b> (반경 1km 고화질 · PLATEAU 1km 패키지) · `:``)+`내부 렌더링: <b>${RT_TYPE===THREE.HalfFloatType?'16비트 부동소수 HDR</b> (RGBA16F)':'8비트</b> (RGBA8)'}<br>`+
     `출력 캔버스: <b>${OUT.f16?'16비트 float':'8비트'}</b> · <b>${OUT.p3?'Display-P3':'sRGB'}</b> · 디더링<br>`+
     `모니터 보고값: ${bpc}비트/채널${hdr?' · HDR 지원':''}<br>`+
     `OSM 건물 <b>${STATS.buildings.toLocaleString()}</b>동 · 도로 ${STATS.roads.toLocaleString()}개 · 나무 ${STATS.trees.toLocaleString()}그루`;
@@ -363,13 +366,13 @@ const MAT_BLD=[atlasMat('real'), atlasMat('pastel')];
 const GROUND_F=`varying vec3 vWPos; uniform float uGT;
 float gh(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float gn(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(gh(i),gh(i+vec2(1,0)),u.x),mix(gh(i+vec2(0,1)),gh(i+vec2(1,1)),u.x),u.y);}`;
-const AERU={value:null}, AERK={value:0};   // GSI aerial photo (seamlessphoto z17) draped over the ground, set by the data-layer module
+const AERU={value:null}, AERK={value:0}, AERC={value:null}, AERCK={value:0};   // AERC: sharper 1 km core photo (z18, ±1100 m)   // GSI aerial photo (seamlessphoto z17) draped over the ground, set by the data-layer module
 function groundMat(kind, gtype, opts={}){
   const aerW = opts.aer!==undefined ? opts.aer : [.78,.82,.72,.6][gtype]; delete opts.aer;
   const m = kind==='real' ? new THREE.MeshStandardMaterial(Object.assign({vertexColors:true,roughness:.95,metalness:0},opts)) : toon(hex('#ffffff'),Object.assign({vertexColors:true},opts));
-  m.onBeforeCompile=(sh)=>{ sh.uniforms.uGT={value:gtype}; sh.uniforms.tAer=AERU; sh.uniforms.uAerK=AERK; sh.uniforms.uAerW={value:aerW};
+  m.onBeforeCompile=(sh)=>{ sh.uniforms.uGT={value:gtype}; sh.uniforms.tAer=AERU; sh.uniforms.uAerK=AERK; sh.uniforms.tCore=AERC; sh.uniforms.uCoreK=AERCK; sh.uniforms.uAerW={value:aerW};
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWPos;').replace('#include <project_vertex>','#include <project_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.)).xyz;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D tAer;uniform float uAerK,uAerW;\n'+GROUND_F).replace('#include <map_fragment>', kind==='real' ? `{
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D tAer,tCore;uniform float uAerK,uAerW,uCoreK;\n'+GROUND_F).replace('#include <map_fragment>', kind==='real' ? `{
       vec2 p=vWPos.xz; float dd=length(cameraPosition-vWPos); float fine=1.-smoothstep(60.,400.,dd);
       float n=gn(p*.08)*.5+gn(p*.31)*.3+gn(p*1.7)*.2*fine; float n2=gn(p*6.)*fine;
       if(uGT<.5){ diffuseColor.rgb*=.86+.26*n+.06*(n2-.5); }                                   // asphalt / paving
@@ -377,6 +380,7 @@ function groundMat(kind, gtype, opts={}){
       else if(uGT<2.5){ diffuseColor.rgb*=.9+.18*n+.12*(n2-.5); }                              // gravel / earth
       else { diffuseColor.rgb*=.93+.12*n; }
       if(uAerK>.5){ vec2 au=vec2((p.x+2400.)/4800.,1.-(p.y+2400.)/4800.); vec3 ac=texture2D(tAer,au).rgb;
+        if(uCoreK>.5){ float cb=1.-smoothstep(1000.,1090.,max(abs(p.x),abs(p.y))); if(cb>0.) ac=mix(ac,texture2D(tCore,vec2((p.x+1100.)/2200.,1.-(p.y+1100.)/2200.)).rgb,cb); }
         float w=uAerW*mix(.5,1.,smoothstep(15.,220.,dd))*step(abs(p.x),2390.)*step(abs(p.y),2390.);
         diffuseColor.rgb=mix(diffuseColor.rgb, ac*(.9+.2*n+.08*(n2-.5)), w); } }` : `{ vec2 p=vWPos.xz; float n=gn(p*.05); diffuseColor.rgb*=.95+.08*n; }`);
   };
@@ -394,7 +398,7 @@ async function fetchJSONProgress(url, approx){
   for(;;){ const {done,value}=await rd.read(); if(done) break; parts.push(value); got+=value.length; tick('데이터 '+(got/1048576).toFixed(1)+' MB', 2+Math.min(10,10*got/approx)); }
   const buf=new Uint8Array(got); let o=0; for(const p of parts){ buf.set(p,o); o+=p.length; } parts.length=0;
   return JSON.parse(new TextDecoder().decode(buf)); }
-const DATA = await fetchJSONProgress(LITE?'nijo_lite.json':'nijo.json', LITE?5441727:7950624);
+const DATA = await fetchJSONProgress(LITE?'nijo_lite.json':'nijo.json', LITE?4200447:7950624);
 const Q = DATA.q;
 const dec = (a)=>{ const n=a.length>>1, o=new Array(n); for(let i=0;i<n;i++) o[i]=[a[2*i]*Q, a[2*i+1]*Q]; return o; };
 const LIN = c=>{ const k=c.clone(); return k; };
@@ -656,7 +660,9 @@ for(const b of DATA.b){
   rasterPoly(outer,1,Math.ceil((b.z||0)+(b.c?18:b.h)+2));
   nB++; if((nB&4095)===0) await tick('건물 '+nB.toLocaleString()+' 동', 18+32*nB/DATA.b.length);
   if(b.c){ castleBuildings.push({b,rings,cx,cz}); continue; }   // castle buildings are built by the castle module
-  if(LITE && !b.c && Math.abs(ringArea(outer))<70 && cx*cx+cz*cz>1400*1400){ liteSkipped++; continue; }   // light profile: small far houses are left to the aerial photo
+  const far = LITE && cx*cx+cz*cz>CORE_R*CORE_R;
+  if(LITE && !b.c && (PKG1K && !far)){ liteSkipped++; continue; }                               // inside 1 km the PLATEAU package provides the buildings
+  if(far && !b.c && Math.abs(ringArea(outer))<70){ liteSkipped++; continue; }                    // outside 1 km: small houses are left to the aerial photo
   const gb=chunkOf(cx,cz);
   const r=hash2(cx*.173,cz*.311), r2=hash2(cz*.57+3,cx*.91), r3=hash2(cx*.37+11,cz*.13+5);
   const base=b.z||0; const kind=b.k; const H=b.h; const minh=b.m||0;
@@ -668,7 +674,7 @@ for(const b of DATA.b){
   // roof decision
   let rtype=b.r; const o=(rtype!=='flat' && area<2500)?obb(outer):null;
   const fill=o?area/(4*o.a*o.b):0;
-  let pitched = o && fill>0.78 && (rtype==='gabled'||rtype==='hipped'||rtype==='pyramidal'||rtype==='hip'||rtype==='gambrel'||rtype==='mansard') && o.b>1.2;
+  let pitched = !far && o && fill>0.78 && (rtype==='gabled'||rtype==='hipped'||rtype==='pyramidal'||rtype==='hip'||rtype==='gambrel'||rtype==='mansard') && o.b>1.2;
   const pitch = kind==='temple'?0.62:(kind==='machiya'?0.5:0.45);
   let rh = pitched ? Math.min(kind==='temple'?9:3.2, o.b*Math.tan(pitch)) : 0;
   let eave = base + H - rh*0.85; if(eave < base+minh+2.3){ eave=base+minh+2.3; }
@@ -690,7 +696,7 @@ for(const b of DATA.b){
     const rc = flatKind==='metal'? new THREE.Color(.62,.66,.72) : jitter(new THREE.Color(.78,.80,.77),.14,cz);
     fillPoly(gb, rings, base+H, rcode, rc, pickP(PASTEL_ROOF.flat,r));
     // parapet lip + rooftop plant for larger flat roofs
-    if(!LITE && area>140 && H>8){ const oo=o||obb(outer); if(oo){ const n=1+Math.floor(r*3);
+    if(!far && !LITE && area>140 && H>8){ const oo=o||obb(outer); if(oo){ const n=1+Math.floor(r*3);
       for(let k=0;k<n;k++){ const s=(hash2(k+cx,cz)-.5)*oo.a, t=(hash2(cz,k+cx)-.5)*oo.b; const sx=1.2+2.5*hash2(k,cx), sz=1.2+2*hash2(cz,k);
         boxAt(gb, oo.c[0]+oo.u[0]*s+oo.v[0]*t, oo.c[1]+oo.u[1]*s+oo.v[1]*t, oo.u[0],oo.u[1], sx,sz, base+H, base+H+1.2+2.2*hash2(k*3,cz), TILE.CONCRETE, new THREE.Color(.75,.75,.74), hexc('#f3eef5'), true, TILE.ROOF_FLAT); } } }
   }
@@ -976,6 +982,7 @@ const TCOL={ // sRGB albedos, mid-November Kyoto: mostly evergreen + early autum
   yellow:[[.50,.45,.17],[.44,.42,.17],[.40,.40,.16]], red:[[.50,.17,.09],[.56,.26,.10],[.44,.14,.10]], orange:[[.52,.34,.14],[.46,.32,.14]]};
 const TCOLP={green:['#b6e2b4','#c6ebc0','#a8dcc0','#cfeec6'], pine:['#9fd4b6','#acdcbe'], yellow:['#fbe7a6','#f8dd96'], red:['#f6b9b4','#f9c4c0'], orange:['#fbd0a8']};
 function addTree(x,z,h,kind,palette,base=0){
+  if(LITE && x*x+z*z>(CORE_R+150)*(CORE_R+150)) return false;   // light profile: trees only around the 1 km core
   const o=occAt(x,z); if(o&(1|2)) return false; if(o&4 && palette!=='street') return false;
   const r=hash2(x*.71+3,z*.37); const pal = palette==='street' ? (r<.22?'yellow':'green') : palette;
   let col; if(kind==='pine') col=TCOL.pine[Math.floor(r*3)]; else if(pal==='auto'){ const q=hash2(z*.3,x*.9); col = q<.1?TCOL.red[Math.floor(r*3)] : q<.18?TCOL.orange[Math.floor(r*2)] : q<.26?TCOL.yellow[Math.floor(r*3)] : TCOL.green[Math.floor(r*5)]; }
@@ -1108,7 +1115,7 @@ const TREE_CHUNKS=[];
     TRIS+=list.length*RGEO[kind][0].attributes.position.count/3;
   }
 }
-function updateTreeLOD(cam){ for(const tc of TREE_CHUNKS){ const d=cam.position.distanceTo(tc.c); const want=d<(LITE?220:(MOBILE?300:520))?1:0; if(want!==tc.lod){ tc.lod=want; tc.im.geometry=TGEO[tc.kind][want]; tc.ir.geometry=RGEO[tc.kind][want]; } } }
+function updateTreeLOD(cam){ for(const tc of TREE_CHUNKS){ const d=cam.position.distanceTo(tc.c); const want=d<(LITE?360:(MOBILE?300:520))?1:0; if(want!==tc.lod){ tc.lod=want; tc.im.geometry=TGEO[tc.kind][want]; tc.ir.geometry=RGEO[tc.kind][want]; } } }
 
 // ---------- distant mountains ringing the Kyoto basin (Higashiyama E, Kitayama N, Nishiyama/Arashiyama W; open to the south) ----------
 {
@@ -1231,7 +1238,7 @@ scene.fog=new THREE.FogExp2(REAL.fog.clone(),REAL.fogD);
 skyU.uHaze.value.copy(REAL.fog);
 
 // ---------- water ----------
-const RS = CAPTURE?0.6:(MOBILE?0.33:0.5);
+const RS = CAPTURE?0.6:(LITE?0.25:(MOBILE?0.33:0.5));
 const waterU={color:{value:null},tDiffuse:{value:null},textureMatrix:{value:null},uTime:{value:0},uPastel:{value:0},uFog:{value:new THREE.Color()},uFogD:{value:0.0016},
   uBody:{value:srgb(.16,.24,.15)},uReflK:{value:.5},uDist:{value:.02},uSlope:{value:.08},uSunDir:{value:sunDir},uSunCol:{value:new THREE.Color(1,.9,.75)}};
 const WSH={
@@ -1261,7 +1268,7 @@ const WSH={
     gl_FragColor=vec4(c,1.);}`};
 // light profile: no planar reflector (it re-renders the whole city every frame) – reflect a fixed sky colour instead
 let water;
-if(LITE){ const sk=new THREE.DataTexture(new Uint16Array([THREE.DataUtils.toHalfFloat(.55),THREE.DataUtils.toHalfFloat(.66),THREE.DataUtils.toHalfFloat(.85),THREE.DataUtils.toHalfFloat(1)]),1,1,THREE.RGBAFormat,THREE.HalfFloatType); sk.needsUpdate=true;
+if(LITE && params.get('refl')==='0'){ const sk=new THREE.DataTexture(new Uint16Array([THREE.DataUtils.toHalfFloat(.55),THREE.DataUtils.toHalfFloat(.66),THREE.DataUtils.toHalfFloat(.85),THREE.DataUtils.toHalfFloat(1)]),1,1,THREE.RGBAFormat,THREE.HalfFloatType); sk.needsUpdate=true;
   waterU.tDiffuse.value=sk; waterU.color.value=new THREE.Color(1,1,1); waterU.textureMatrix.value=new THREE.Matrix4().set(0,0,0,.5, 0,0,0,.5, 0,0,0,0, 0,0,0,1);
   water=new THREE.Mesh(WATER_GEO,new THREE.ShaderMaterial(WSH)); water.getRenderTarget=()=>({setSize(){}}); }
 else water=new Reflector(WATER_GEO,{textureWidth:W*DPR*RS,textureHeight:H*DPR*RS,clipBias:0.003,multisample:(MOBILE||CAPTURE)?0:4,shader:WSH});
@@ -1289,13 +1296,21 @@ function applyStyle(s){
 // =====================================================================
 await tick('항공사진·지형·PLATEAU 건물');
 // PLATEAU streaming is off by default in the light profile (hundreds of MB of 8192px texture atlases); ?tiles=1 turns it on
+// light profile: a pre-built local package of the PLATEAU buildings within 1 km (clipped, textures 2048 px KTX2/ETC1S) instead of streaming
+const USE_PKG = PKG1K;
 const USE_TILES = params.get('tiles')==='1' || (!LITE && params.get('tiles')!=='0');
 const TERR_N=257, OFF_N=512;
+let KTX2=null;
+function getKTX2(){ if(KTX2) return KTX2; KTX2=import('three/addons/loaders/KTX2Loader.js').then(({KTX2Loader})=>new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/basis/').setWorkerLimit(LITE?1:2).detectSupport(renderer)); return KTX2; }
+
 let OFFTEX=null, TERR=null;
 {
   const ld=(u)=>new Promise(r=>new THREE.TextureLoader().load(u,t=>r(t),undefined,()=>r(null)));
-  const AS=LITE?'_lite':''; const [aNear,aMid,aFar,tb]=await Promise.all([ld('aerial_near'+AS+'.jpg'),ld('aerial_mid'+AS+'.jpg'),ld('aerial_far'+AS+'.jpg'),fetch('terrain.bin').then(r=>r.ok?r.arrayBuffer():null).catch(()=>null)]);
-  for(const t of [aNear,aMid,aFar]) if(t){ t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=Math.min(LITE?4:8,renderer.capabilities.getMaxAnisotropy()); t.minFilter=THREE.LinearMipmapLinearFilter; t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; }
+  const AS=LITE?'_lite':'';
+  const ldK=(u)=>getKTX2().then(k=>k.loadAsync(u)).catch(e=>{ console.warn('ktx2',u,e); return null; });
+  const [aNear,aMid,aFar,tb,aCore]=await Promise.all([LITE?ldK('aerial_near_lite.ktx2'):ld('aerial_near.jpg'),ld('aerial_mid'+AS+'.jpg'),ld('aerial_far'+AS+'.jpg'),fetch('terrain.bin').then(r=>r.ok?r.arrayBuffer():null).catch(()=>null), LITE?ldK('aerial_core.ktx2'):ld('aerial_core.jpg')]);
+  for(const t of [aNear,aMid,aFar]) if(t){ if(!t.isCompressedTexture) t.minFilter=THREE.LinearMipmapLinearFilter; t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=Math.min(LITE?4:8,renderer.capabilities.getMaxAnisotropy()); t.minFilter=THREE.LinearMipmapLinearFilter; t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; }
+  if(aCore){ aCore.colorSpace=THREE.SRGBColorSpace; aCore.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy()); aCore.minFilter=THREE.LinearMipmapLinearFilter; aCore.wrapS=aCore.wrapT=THREE.ClampToEdgeWrapping; AERC.value=aCore; AERCK.value=1; }
   if(aNear){ AERU.value=aNear; AERK.value=1; }
   if(tb){ const f=new Float32Array(tb); const off=f.subarray(0,OFF_N*OFF_N); TERR=f.subarray(OFF_N*OFF_N);
     const h=new Uint16Array(off.length); for(let i=0;i<off.length;i++) h[i]=THREE.DataUtils.toHalfFloat(off[i]);
@@ -1367,7 +1382,7 @@ function tilePatch(m,kind){
     if(kind==='depth') sh.vertexShader=sh.vertexShader; };
   m.customProgramCacheKey=()=>'plateau-'+kind; return m; }
 const DEPTH_MAT=tilePatch(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking}),'depth');
-function shrinkTex(t){ const im=t&&t.image; if(!im||!im.width||im.width<=MAXT) return; const s=MAXT/Math.max(im.width,im.height);
+function shrinkTex(t){ if(t&&t.isCompressedTexture) return; const im=t&&t.image; if(!im||!im.width||im.width<=MAXT) return; const s=MAXT/Math.max(im.width,im.height);
   const c=document.createElement('canvas'); c.width=Math.round(im.width*s); c.height=Math.round(im.height*s); c.getContext('2d').drawImage(im,0,0,c.width,c.height); if(im.close) im.close(); t.image=c; t.needsUpdate=true; }
 function onTileModel({scene:root}){
   tileModels++;
@@ -1375,7 +1390,7 @@ function onTileModel({scene:root}){
     const real=tilePatch(new THREE.MeshStandardMaterial({map,color:map?0xffffff:new THREE.Color().setRGB(.62,.60,.57,THREE.SRGBColorSpace),roughness:.86,metalness:0,envMapIntensity:.8}),'real');
     const pas=tilePatch(new THREE.MeshToonMaterial({map,color:0xffffff,gradientMap:grad}),'pastel');
     om.dispose(); o.customDepthMaterial=DEPTH_MAT; o.castShadow=true; o.receiveShadow=true; reg(o,real,pas); o.material=curStyle===1?pas:real; });
-  if(!tilesShown){ tilesShown=true; scene.traverse(o=>{ if(o.name&&(o.name.startsWith('bld')||o.name==='filler')) o.visible=false; }); STATS.plateau=true; updateBadge&&updateBadge(); }
+  if(!tilesShown && !USE_PKG){ tilesShown=true; scene.traverse(o=>{ if(o.name&&(o.name.startsWith('bld')||o.name==='filler')) o.visible=false; }); STATS.plateau=true; updateBadge&&updateBadge(); }
 }
 function onTileDispose({scene:root}){ root.traverse(o=>{ if(!o.isMesh) return; const i=styled.indexOf(o); if(i>=0) styled.splice(i,1); for(const m of o.userData.m||[]) m.dispose(); if(o.material&&o.material.map) o.material.map.dispose(); }); }
 if(USE_TILES){
@@ -1394,8 +1409,24 @@ if(USE_TILES){
     t.addEventListener('load-error',e=>console.warn('PLATEAU tile load error',e&&e.url));
     scene.add(t.group); TILESETS.push(t); }
 }
+// ---- local 1 km PLATEAU package (light profile): progressive, nearest first, one model at a time ----
+let pkgPending=0, pkgDone=false;
+async function loadPkg(){
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const { DRACOLoader } = await import('three/addons/loaders/DRACOLoader.js');
+  const loader=new GLTFLoader(); const dl=new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/').setWorkerLimit(1); loader.setDRACOLoader(dl); loader.setKTX2Loader(await getKTX2());
+  const man=await (await fetch('plateau1k/index.json')).json(); pkgPending=man.files.length;
+  const freeTex=(t)=>{ t.onUpdate=function(){ if(this.mipmaps) for(const m of this.mipmaps) m.data=new Uint8Array(0); this.onUpdate=null; }; };
+  for(const f of man.files){
+    try{ const g=await loader.loadAsync('plateau1k/'+f.f);
+      g.scene.traverse(o=>{ if(!o.isMesh) return; for(const a of Object.values(o.geometry.attributes)) a.onUpload(freeCPU); if(o.geometry.index) o.geometry.index.onUpload(freeCPU); if(o.material.map) freeTex(o.material.map); });
+      g.scene.updateMatrixWorld(true); onTileModel({scene:g.scene}); scene.add(g.scene); }
+    catch(e){ console.warn('PLATEAU package tile failed', f.f, e); }
+    pkgPending--; }
+  pkgDone=true; dl.dispose(); (await getKTX2()).dispose(); KTX2=null; console.log('PLATEAU 1km package loaded', tileModels); }   // terminate decoder workers (frees their wasm heaps)
+const PKG_PROMISE = USE_PKG ? loadPkg().catch(e=>{ console.warn('PLATEAU package failed',e); pkgDone=true; pkgPending=0; }) : null;
 function tilesUpdate(){ for(const t of TILESETS){ t.setResolutionFromRenderer(camera,renderer); t.update(); } }
-function tilesBusy(){ for(const t of TILESETS){ if(t.loadProgress<1) return true; } return false; }
+function tilesBusy(){ if(USE_PKG && !pkgDone) return true; for(const t of TILESETS){ if(t.loadProgress<1) return true; } return false; }
 
 // =====================================================================
 //  CAMERA MODES: 궤도 (orbit) · 드론 (free flight) · 걷기 (first-person walk)
