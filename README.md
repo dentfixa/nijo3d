@@ -12,3 +12,8 @@ Data & credits
 - HDRI "Pretoria Gardens" by Poly Haven, CC0.
 - Colour references (not shipped in the scene): GSI aerial photo (国土地理院); Wikimedia Commons photos by Zairon (CC BY-SA 4.0), Falbisoner (CC BY-SA 4.0), そらみみ (CC BY-SA 3.0), ccfarmer (CC BY 3.0), hagat (CC0).
 - three.js (MIT) via CDN.
+
+## iPhone / 가벼운 모드 (light profile)
+- Selected automatically on iOS, Android/mobile and low-memory devices; force with `?lite=1`, force the full desktop pipeline with `?full=1`.
+- Light profile: OSM buildings only (PLATEAU streaming off; `?tiles=1` to opt in, not recommended on phones), reduced building set beyond 1.4 km, 2048/1024 px aerial photos, indexed half-float geometry with CPU copies freed after GPU upload, FXAA instead of MSAA, pixel ratio ≤ 1.5, 8-bit sRGB canvas, 1024 shadow map, no planar moat reflection, 6-sample SSAO, no bloom.
+- Loading progress bar, WebGL context-loss / error fallback screen with a "가벼운 모드로 다시 열기" button.
