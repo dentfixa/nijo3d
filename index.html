@@ -10,7 +10,7 @@
   #ui{position:fixed;left:0;right:0;bottom:18px;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;pointer-events:none}
   #ui button{pointer-events:auto;border:1px solid rgba(255,255,255,.55);background:rgba(20,22,30,.45);color:#fff;font-size:15px;padding:11px 18px;border-radius:999px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.18);transition:background .2s}
   #ui button:hover{background:rgba(20,22,30,.65)}
-  #ui button.on{background:rgba(214,170,60,.8)}
+  #ui button.on,#ui .seg button.on{background:rgba(214,170,60,.8)}
   #title{position:fixed;left:16px;top:14px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.45);pointer-events:none}
   #title h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.02em}
   #title p{margin:3px 0 0;font-size:13px;opacity:.9}
@@ -1151,7 +1151,7 @@ function setMode(m, opt={}){
   camDirToYawPitch();
   if(m==='drone'){ if(opt.pos) camera.position.set(...opt.pos); camera.position.y=Math.min(1500,Math.max(camera.position.y, hgtAt(camera.position.x,camera.position.z)+3)); if(opt.yaw!==undefined){NAV.yaw=opt.yaw;NAV.pitch=opt.pitch??-.25;} setSpeed(NAV.speed); }
   if(m==='walk'){
-    let x,z; if(opt.pos){ [x,z]=opt.pos; } else { const t=controls.target; [x,z]=[t.x,t.z]; }
+    let x,z; if(opt.pos){ [x,z]=opt.pos; } else { const t=controls.target; [x,z]=[t.x,t.z]; if(t.distanceTo(HOME_TGT)<30||(occAt(x,z)&8)){ [x,z]=[304,150]; if(opt.yaw===undefined) opt.yaw=Math.PI/2; } }
     [x,z]=findWalkable(x,z); camera.position.set(x,groundY(x,z)+NAV.eyeY,z);
     if(opt.yaw!==undefined) NAV.yaw=opt.yaw; NAV.pitch=opt.pitch??0; NAV.bob=0; }
   applyLook();
